@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../datos/repositorio_casos.dart';
 import '../datos/sesion.dart';
+import 'pagina_casos_revision.dart';
 import 'pagina_login.dart';
 import 'pagina_polizas.dart';
 import 'pagina_catalogos.dart';
@@ -19,6 +21,24 @@ class PaginaInicio extends StatefulWidget {
 }
 
 class _PaginaInicioState extends State<PaginaInicio> {
+  /// Casos por revisar pendientes (null = no se pudo consultar).
+  int? _casosPendientes;
+
+  @override
+  void initState() {
+    super.initState();
+    _contarCasos();
+  }
+
+  Future<void> _contarCasos() async {
+    try {
+      final n = await RepositorioCasos().contarPendientes();
+      if (mounted) setState(() => _casosPendientes = n);
+    } catch (_) {
+      // Sin la tabla (o sin conexión) la tarjeta sale sin contador.
+    }
+  }
+
   void _cerrarSesion() {
     Sesion.cerrar();
     Navigator.of(context).pushReplacement(
@@ -155,6 +175,23 @@ class _PaginaInicioState extends State<PaginaInicio> {
               ),
               const SizedBox(height: 10),
 
+              // ── Casos por revisar ─────────────────────────────────────────
+              _NavCard(
+                icon: Icons.fact_check_outlined,
+                iconColor: AppTheme.warning,
+                title: 'Casos por revisar',
+                subtitle: 'Pagos, pólizas o comisiones dudosas que hay que aclarar',
+                contador: _casosPendientes,
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PaginaCasosRevision()),
+                  );
+                  _contarCasos();
+                },
+              ),
+              const SizedBox(height: 10),
+
               // ── Catálogos (Admin: todos / Digitador: Clientes, Aseguradoras,
               // Ramos y Productos — PaginaCatalogos oculta el resto sola) ────
               _NavCard(
@@ -213,6 +250,9 @@ class _NavCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  /// Número a resaltar junto a la flecha (p. ej. casos pendientes); 0 o
+  /// null = no se muestra.
+  final int? contador;
 
   const _NavCard({
     required this.icon,
@@ -220,6 +260,7 @@ class _NavCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.contador,
   });
 
   @override
@@ -261,6 +302,19 @@ class _NavCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if ((contador ?? 0) > 0)
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warning,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$contador',
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
               Icon(Icons.chevron_right, size: 20, color: cs.onSurfaceVariant),
             ],
           ),

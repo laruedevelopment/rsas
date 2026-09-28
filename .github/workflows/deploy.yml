@@ -26,7 +26,7 @@ jobs:
 
       - name: Deploy to SegurAppRSAS
         run: |
-          git clone https://x-access-token:${{ secrets.DEPLOY_TOKEN }}@github.com/javierrueda7/SegurAppRSAS.git deploy_repo
+          git clone https://x-access-token:${{ secrets.DEPLOY_TOKEN }}@github.com/laruedevelopment/SegurAppRSAS.git deploy_repo
           cp -r build/web/. deploy_repo/
           cd deploy_repo
           git config user.name "GitHub Actions"
