@@ -102,6 +102,7 @@ class FormaExpLite {
 
 class PaginaFormularioPolizas extends StatefulWidget {
   final Poliza? poliza;
+
   /// Póliza en borrador o predigitada por IA que se está retomando — ver
   /// lib/fix_polizas_pendientes.sql. No se usa junto con [poliza].
   final PolizaPendiente? polizaPendiente;
@@ -180,12 +181,14 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
   List<Asesor> asesores = [];
   List<Aseguradora> aseguradoras = [];
   List<Ramo> ramos = [];
+
   /// Ramos que tienen al menos un producto activo bajo la aseguradora
   /// elegida — igual que Producto se reduce por Ramo+Aseguradora, Ramo se
   /// reduce por Aseguradora (los ramos no tienen aseguradora propia, se
   /// derivan de los productos). Sin aseguradora elegida, muestra todos.
   List<Ramo> ramosDisponibles = [];
   List<Producto> productos = [];
+
   /// Todos los productos activos (de cualquier aseguradora/ramo) — sirve
   /// para derivar qué ramos tiene cada aseguradora sin ir a la red.
   List<Producto> _todosProductos = [];
@@ -217,9 +220,14 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     _inicializar();
     // Rebuild en tiempo real para los valores calculados por asesor
     for (final ctrl in [
-      _comDistribCtrl, _comAdicDistribCtrl,
-      _porcomAsesor1Ctrl, _porcomAsesor2Ctrl, _porcomAsesor3Ctrl,
-      _porcomAsesoradCtrl, _porcomAgenciaCtrl, _porcomAgenciaadCtrl,
+      _comDistribCtrl,
+      _comAdicDistribCtrl,
+      _porcomAsesor1Ctrl,
+      _porcomAsesor2Ctrl,
+      _porcomAsesor3Ctrl,
+      _porcomAsesoradCtrl,
+      _porcomAgenciaCtrl,
+      _porcomAgenciaadCtrl,
     ]) {
       ctrl.addListener(_onComDistribChanged);
     }
@@ -341,14 +349,16 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
   /// NO debe usarse cuando el usuario cambia de Aseguradora a mano: ahí el
   /// Ramo/Producto de la aseguradora anterior no pertenecen a la nueva y
   /// tienen que limpiarse de verdad, no quedar "colados" en la lista.
-  List<Ramo> _calcularRamosDisponibles(Aseguradora? aseg, {bool mantenerActual = true}) {
+  List<Ramo> _calcularRamosDisponibles(Aseguradora? aseg,
+      {bool mantenerActual = true}) {
     if (aseg == null) return ramos;
     final idsConProducto = _todosProductos
         .where((p) => p.aseguradoraId == aseg.id)
         .map((p) => p.ramoId)
         .toSet();
     if (mantenerActual && ramo != null) idsConProducto.add(ramo!.id);
-    final filtrados = ramos.where((r) => idsConProducto.contains(r.id)).toList();
+    final filtrados =
+        ramos.where((r) => idsConProducto.contains(r.id)).toList();
     // Si la aseguradora todavía no tiene ningún producto cargado, no
     // bloqueamos el formulario con un dropdown vacío — mostramos todos.
     return filtrados.isEmpty ? ramos : filtrados;
@@ -385,7 +395,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
   }
 
   /// Valor que le corresponde a un participante según Com a distrib y su %.
-  num _vlrParticipante(TextEditingController porcCtrl, TextEditingController baseCtrl) {
+  num _vlrParticipante(
+      TextEditingController porcCtrl, TextEditingController baseCtrl) {
     final base = _parseNumero(baseCtrl.text) ?? 0;
     final porc = _parseNumero(porcCtrl.text) ?? 0;
     return base * (porc / 100);
@@ -406,19 +417,40 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
 
   Future<void> _cargarCatalogosExtra() async {
     final results = await Future.wait([
-      _db.from('formas_pago').select().order('nombre_forma_pago', ascending: true),
-      _db.from('estados_poliza').select().order('nombre_estado', ascending: true),
-      _db.from('intermediarios').select().order('nombre_interm', ascending: true),
+      _db
+          .from('formas_pago')
+          .select()
+          .order('nombre_forma_pago', ascending: true),
+      _db
+          .from('estados_poliza')
+          .select()
+          .order('nombre_estado', ascending: true),
+      _db
+          .from('intermediarios')
+          .select()
+          .order('nombre_interm', ascending: true),
       _db.from('formaexp').select().order('nombre_formaexp', ascending: true),
     ]);
 
-    _todasFormasPago = (results[0] as List).cast<Map<String, dynamic>>().map(FormaPagoLite.fromMap).toList();
-    _todosEstados = (results[1] as List).cast<Map<String, dynamic>>().map(EstadoPolizaLite.fromMap).toList();
-    _todosIntermediarios = (results[2] as List).cast<Map<String, dynamic>>().map(IntermediarioLite.fromMap).toList();
-    formasPago     = _todasFormasPago.where((x) => x.activo).toList();
-    estadosPoliza  = _todosEstados.where((x) => x.activo).toList();
+    _todasFormasPago = (results[0] as List)
+        .cast<Map<String, dynamic>>()
+        .map(FormaPagoLite.fromMap)
+        .toList();
+    _todosEstados = (results[1] as List)
+        .cast<Map<String, dynamic>>()
+        .map(EstadoPolizaLite.fromMap)
+        .toList();
+    _todosIntermediarios = (results[2] as List)
+        .cast<Map<String, dynamic>>()
+        .map(IntermediarioLite.fromMap)
+        .toList();
+    formasPago = _todasFormasPago.where((x) => x.activo).toList();
+    estadosPoliza = _todosEstados.where((x) => x.activo).toList();
     intermediarios = _todosIntermediarios.where((x) => x.activo).toList();
-    formasExp      = (results[3] as List).cast<Map<String, dynamic>>().map(FormaExpLite.fromMap).toList();
+    formasExp = (results[3] as List)
+        .cast<Map<String, dynamic>>()
+        .map(FormaExpLite.fromMap)
+        .toList();
   }
 
   /// Después de cargar una póliza: si su valor está inactivo, se agrega a
@@ -427,10 +459,12 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     if (formaPago != null && !formasPago.any((x) => x.id == formaPago!.id)) {
       formasPago = [...formasPago, formaPago!];
     }
-    if (estadoPoliza != null && !estadosPoliza.any((x) => x.id == estadoPoliza!.id)) {
+    if (estadoPoliza != null &&
+        !estadosPoliza.any((x) => x.id == estadoPoliza!.id)) {
       estadosPoliza = [...estadosPoliza, estadoPoliza!];
     }
-    if (intermediario != null && !intermediarios.any((x) => x.id == intermediario!.id)) {
+    if (intermediario != null &&
+        !intermediarios.any((x) => x.id == intermediario!.id)) {
       intermediarios = [...intermediarios, intermediario!];
     }
   }
@@ -479,7 +513,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     if (actualizado == null || !mounted) return;
     setState(() {
       clientes = [
-        for (final c in clientes) if (c.id != id) c,
+        for (final c in clientes)
+          if (c.id != id) c,
         actualizado,
       ]..sort((a, b) => a.nombreCliente.compareTo(b.nombreCliente));
       cliente = actualizado;
@@ -516,7 +551,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
       final allProductosActivos = _todosProductos;
 
       if (esEdicion) {
-        final p = await _repoPol.obtenerPoliza(widget.poliza!.id) ?? widget.poliza!;
+        final p =
+            await _repoPol.obtenerPoliza(widget.poliza!.id) ?? widget.poliza!;
 
         _idCtrl.text = p.id.toString();
         _nroCtrl.text = p.nroPoliza ?? '';
@@ -554,7 +590,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
         _fFinCtrl.text = fFin == null ? '' : _formatearFecha(fFin!);
 
         cliente = await _asegurarCliente(p.clienteId);
-        intermediario = _todosIntermediarios.firstWhereOrNull((x) => x.id == p.intermediarioId);
+        intermediario = _todosIntermediarios
+            .firstWhereOrNull((x) => x.id == p.intermediarioId);
         formaExp = formasExp.firstWhereOrNull((x) => x.id == p.formaexpId);
 
         asesor1 = await _asegurarAsesor(p.asesorId);
@@ -597,7 +634,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
           aseguradora = aseguradoras.firstWhereOrNull((a) => a.id == asegId);
         }
 
-        formaPago = _todasFormasPago.firstWhereOrNull((x) => x.id == p.formaPagoId);
+        formaPago =
+            _todasFormasPago.firstWhereOrNull((x) => x.id == p.formaPagoId);
         estadoPoliza =
             _todosEstados.firstWhereOrNull((x) => x.id == p.estadoPolizaId);
         _estadoOriginalId = p.estadoPolizaId;
@@ -682,7 +720,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     _porcomAsesor3Ctrl.text = _fmtNum(_numJson(datos['porcom_asesor3']));
     _porcomAsesoradCtrl.text = _fmtNum(_numJson(datos['porcom_asesorad']));
     _porcomAgenciaadCtrl.text = _fmtNum(_numJson(datos['porcom_agenciaad']));
-    _vlrPrimaPagadaCtrl.text = _fmtMoney(_numJson(datos['vlrprimapagada_poliza']));
+    _vlrPrimaPagadaCtrl.text =
+        _fmtMoney(_numJson(datos['vlrprimapagada_poliza']));
     _obsCtrl.text = (datos['obs_poliza'] as String?) ?? '';
 
     fExp = _dateJson(datos['fexp_poliza']);
@@ -706,7 +745,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     agenciaAd = await _asegurarAsesor(_intJson(datos['agenciaad_id']));
 
     final productoId = _intJson(datos['producto_id']);
-    Producto? prod = _todosProductos.firstWhereOrNull((x) => x.id == productoId);
+    Producto? prod =
+        _todosProductos.firstWhereOrNull((x) => x.id == productoId);
     if (prod == null && productoId != null) {
       prod = await _repoCat.obtenerProducto(productoId);
     }
@@ -717,7 +757,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     if (ramo == null && ramoId != null) {
       final sel = await _repoCat.obtenerRamo(ramoId);
       if (sel != null) {
-        ramos = [...ramos, sel]..sort((a, b) => a.nombreRamo.compareTo(b.nombreRamo));
+        ramos = [...ramos, sel]
+          ..sort((a, b) => a.nombreRamo.compareTo(b.nombreRamo));
         ramo = ramos.firstWhereOrNull((x) => x.id == ramoId);
       }
     }
@@ -849,7 +890,10 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
         }
         final (nombreSugerido, docSugerido) = switch (rolSugerido) {
           'asegurado' => (datos['nombre_asegurado'], datos['doc_asegurado']),
-          'beneficiario' => (datos['nombre_beneficiario'], datos['doc_beneficiario']),
+          'beneficiario' => (
+              datos['nombre_beneficiario'],
+              datos['doc_beneficiario']
+            ),
           _ => (datos['nombre_cliente'], datos['doc_cliente']),
         };
         avisoCliente = ' Cliente extraído: "${nombreSugerido ?? '—'}" '
@@ -888,8 +932,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
 
     // Se calcula antes del await de cliente porque el aprendizaje de rol
     // necesita saber la aseguradora — es síncrono, no hace falta esperar.
-    final matchAsegPrevio =
-        _matchPorNombre(aseguradoras, (a) => a.nombreAseg, texto('nombre_aseguradora'));
+    final matchAsegPrevio = _matchPorNombre(
+        aseguradoras, (a) => a.nombreAseg, texto('nombre_aseguradora'));
 
     // La búsqueda de cliente pega al servidor — se resuelve antes del
     // setState para no mezclar await con la actualización de estado.
@@ -898,7 +942,9 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
       ('asegurado', texto('nombre_asegurado'), texto('doc_asegurado')),
       ('beneficiario', texto('nombre_beneficiario'), texto('doc_beneficiario')),
     ]);
-    if (matchCliente != null && rolMatcheado != null && matchAsegPrevio != null) {
+    if (matchCliente != null &&
+        rolMatcheado != null &&
+        matchAsegPrevio != null) {
       _clienteIdSugeridoPorIA = matchCliente.id;
       _rolClienteSugeridoPorIA = rolMatcheado;
       _aseguradoraIdEnSugerenciaCliente = matchAsegPrevio.id;
@@ -991,8 +1037,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
           final prodIdAprendido = await _repoCat.buscarProductoAprendido(
               aseguradora!.id, textoProdNorm);
           if (prodIdAprendido != null) {
-            matchAprendido = candidatosProd
-                .firstWhereOrNull((p) => p.id == prodIdAprendido);
+            matchAprendido =
+                candidatosProd.firstWhereOrNull((p) => p.id == prodIdAprendido);
           }
         } catch (_) {}
       }
@@ -1099,7 +1145,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
           ..sort((a, b) => b.length.compareTo(a.length));
         if (palabras.isEmpty) return (null, null);
         final res = await _repoCat.buscarClientes(palabras.first, limit: 20);
-        final matchNombre = _matchPorNombre(res, (c) => c.nombreCliente, nombre);
+        final matchNombre =
+            _matchPorNombre(res, (c) => c.nombreCliente, nombre);
         return (matchNombre, matchNombre != null ? primero!.$1 : null);
       }
     } catch (_) {
@@ -1156,7 +1203,12 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
   String _normalizarTexto(String s) {
     var r = s.trim().toUpperCase();
     const acentos = {
-      'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ñ': 'N',
+      'Á': 'A',
+      'É': 'E',
+      'Í': 'I',
+      'Ó': 'O',
+      'Ú': 'U',
+      'Ñ': 'N',
     };
     acentos.forEach((k, v) => r = r.replaceAll(k, v));
     return r;
@@ -1200,6 +1252,7 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
           : null,
       onEditingComplete: onEditingComplete,
       onChanged: onChanged,
+      style: const TextStyle(fontSize: 14),
       decoration: InputDecoration(
         labelText: l,
         helperText: helper,
@@ -1271,12 +1324,16 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
         }
         return null;
       },
+      style: const TextStyle(fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
         hintText: 'dd-mm-aaaa',
         border: const OutlineInputBorder(),
+        suffixIconConstraints:
+            const BoxConstraints(minWidth: 36, minHeight: 24),
         suffixIcon: IconButton(
-          icon: const Icon(Icons.calendar_month),
+          padding: EdgeInsets.zero,
+          icon: const Icon(Icons.calendar_month, size: 18),
           onPressed: () async {
             final sel = await mostrarSelectorFecha(
               context,
@@ -1307,13 +1364,34 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     if (!ok) return;
 
     // Campos obligatorios según la base de datos
-    if (cliente == null) { _toast('El campo Cliente es obligatorio.'); return; }
-    if (aseguradora == null) { _toast('El campo Aseguradora es obligatorio.'); return; }
-    if (ramo == null) { _toast('El campo Ramo es obligatorio.'); return; }
-    if (producto == null) { _toast('El campo Producto es obligatorio.'); return; }
-    if (asesor1 == null) { _toast('El campo Asesor es obligatorio.'); return; }
-    if (fFin == null) { _toast('La Fecha fin es obligatoria.'); return; }
-    if (Sesion.usuarioId == null) { _toast('No hay un usuario activo en sesión.'); return; }
+    if (cliente == null) {
+      _toast('El campo Cliente es obligatorio.');
+      return;
+    }
+    if (aseguradora == null) {
+      _toast('El campo Aseguradora es obligatorio.');
+      return;
+    }
+    if (ramo == null) {
+      _toast('El campo Ramo es obligatorio.');
+      return;
+    }
+    if (producto == null) {
+      _toast('El campo Producto es obligatorio.');
+      return;
+    }
+    if (asesor1 == null) {
+      _toast('El campo Asesor es obligatorio.');
+      return;
+    }
+    if (fFin == null) {
+      _toast('La Fecha fin es obligatoria.');
+      return;
+    }
+    if (Sesion.usuarioId == null) {
+      _toast('No hay un usuario activo en sesión.');
+      return;
+    }
 
     if (fIni != null && fFin!.isBefore(fIni!)) {
       _toast('La fecha fin no puede ser anterior a la fecha inicio.');
@@ -1325,9 +1403,11 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     final porcAsesor2 = _parseNumero(_porcomAsesor2Ctrl.text) ?? 0;
     final porcAsesor3 = _parseNumero(_porcomAsesor3Ctrl.text) ?? 0;
     final porcAgencia = _parseNumero(_porcomAgenciaCtrl.text) ?? 0;
-    final totalPorcPrincipal = porcAsesor1 + porcAsesor2 + porcAsesor3 + porcAgencia;
+    final totalPorcPrincipal =
+        porcAsesor1 + porcAsesor2 + porcAsesor3 + porcAgencia;
     if (totalPorcPrincipal > 100 + 1e-6) {
-      _toast('La suma de % de comisiones (Asesor 1 + 2 + 3 + Agencia) es ${totalPorcPrincipal.toStringAsFixed(2)}% y supera el 100%.');
+      _toast(
+          'La suma de % de comisiones (Asesor 1 + 2 + 3 + Agencia) es ${totalPorcPrincipal.toStringAsFixed(2)}% y supera el 100%.');
       return;
     }
 
@@ -1336,7 +1416,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     final porcAgenciaad = _parseNumero(_porcomAgenciaadCtrl.text) ?? 0;
     final totalPorcAdic = porcAsesorad + porcAgenciaad;
     if (totalPorcAdic > 100 + 1e-6) {
-      _toast('La suma de % adicionales (Asesor adic. + Agencia adic.) es ${totalPorcAdic.toStringAsFixed(2)}% y supera el 100%.');
+      _toast(
+          'La suma de % adicionales (Asesor adic. + Agencia adic.) es ${totalPorcAdic.toStringAsFixed(2)}% y supera el 100%.');
       return;
     }
 
@@ -1346,7 +1427,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     final comDistrib = _parseNumero(_comDistribCtrl.text) ?? 0;
     final maxComDistrib = vlrCom + comFija;
     if (comDistrib > maxComDistrib + 0.005) {
-      _toast('La Com. a distribuir (\$ ${Fmt.money(comDistrib, dec: 2)}) no puede ser mayor a '
+      _toast(
+          'La Com. a distribuir (\$ ${Fmt.money(comDistrib, dec: 2)}) no puede ser mayor a '
           'Vlr Com + Com Fija (\$ ${Fmt.money(maxComDistrib, dec: 2)}).');
       return;
     }
@@ -1366,7 +1448,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
           aseguradoraId: aseguradora?.id,
         );
         if (existeNro) {
-          _toast('Ya existe una póliza de ${aseguradora?.nombreAseg ?? 'esta aseguradora'} '
+          _toast(
+              'Ya existe una póliza de ${aseguradora?.nombreAseg ?? 'esta aseguradora'} '
               'con el número "$nroPolizaTrim".');
           return;
         }
@@ -1379,7 +1462,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
         final originalId = widget.poliza!.id;
         // Al editar no se modifica quién la creó originalmente.
         data.remove('usuario_id');
-        if (estadoPoliza?.id == _estadoOriginalId) data.remove('estado_poliza_id');
+        if (estadoPoliza?.id == _estadoOriginalId)
+          data.remove('estado_poliza_id');
         if (data['vlrprimapagada_poliza'] == _primaPagadaOriginal) {
           data.remove('vlrprimapagada_poliza');
         }
@@ -1460,7 +1544,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
   String? _nombreArchivoImportado;
 
   Future<void> _mostrarConfirmacionGuardado(int idReal) async {
-    final archivo = _nombreArchivoImportado ?? widget.polizaPendiente?.nombreArchivo;
+    final archivo =
+        _nombreArchivoImportado ?? widget.polizaPendiente?.nombreArchivo;
     final nombreSugerido = archivo == null ? null : '$idReal - $archivo';
 
     Future<void> copiar(BuildContext ctx, String texto, String aviso) async {
@@ -1483,10 +1568,11 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Código: $idReal',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 20)),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
             const SizedBox(height: 12),
-            Text('Nro. Póliza: ${_nroCtrl.text.trim().isEmpty ? '—' : _nroCtrl.text.trim()}'),
+            Text(
+                'Nro. Póliza: ${_nroCtrl.text.trim().isEmpty ? '—' : _nroCtrl.text.trim()}'),
             Text('Cliente: ${cliente?.nombreCliente ?? '—'}'),
             Text('Aseguradora: ${aseguradora?.nombreAseg ?? '—'}'),
             Text('Prima: \$ ${_primaCtrl.text}'),
@@ -1506,7 +1592,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
           ),
           if (nombreSugerido != null)
             TextButton.icon(
-              onPressed: () => copiar(ctx, nombreSugerido, 'Nombre del archivo copiado'),
+              onPressed: () =>
+                  copiar(ctx, nombreSugerido, 'Nombre del archivo copiado'),
               icon: const Icon(Icons.drive_file_rename_outline, size: 16),
               label: const Text('Copiar nombre de archivo'),
             ),
@@ -1523,7 +1610,9 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
   /// — se reusa para el snapshot que se guarda en un borrador.
   Map<String, dynamic> _mapaActual() {
     return <String, dynamic>{
-      'nro_poliza': _nroCtrl.text.trim().isEmpty ? null : formatearNroPoliza(_nroCtrl.text),
+      'nro_poliza': _nroCtrl.text.trim().isEmpty
+          ? null
+          : formatearNroPoliza(_nroCtrl.text),
       'cliente_id': _idValido(cliente?.id),
       'asesor_id': _idValido(asesor1?.id),
       'intermediario_id': _idValido(intermediario?.id),
@@ -1573,9 +1662,11 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
       final datos = _mapaActual();
       final idExistente = widget.polizaPendiente?.id;
       if (idExistente != null) {
-        await _repoPend.actualizar(idExistente, estado: 'borrador', datos: datos);
+        await _repoPend.actualizar(idExistente,
+            estado: 'borrador', datos: datos);
       } else {
-        await _repoPend.crear(estado: 'borrador', datos: datos, origen: 'manual');
+        await _repoPend.crear(
+            estado: 'borrador', datos: datos, origen: 'manual');
       }
       if (!mounted) return;
       _toast('Guardado como borrador.');
@@ -1608,14 +1699,17 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
             items: asesores,
             itemLabel: (a) => a.nombreAsesor,
             onChanged: onChanged,
-            validator: req ? (x) => x == null ? 'Requerido' : null : (_) => null,
+            validator:
+                req ? (x) => x == null ? 'Requerido' : null : (_) => null,
           ),
         ),
         const SizedBox(width: 12),
         SizedBox(
           width: 120,
           child: porcCtrl != null
-              ? _campo('% Comisión', porcCtrl, num: true, maxDec: 5,
+              ? _campo('% Comisión', porcCtrl,
+                  num: true,
+                  maxDec: 5,
                   onEditingComplete: () => _formatearNum(porcCtrl))
               : const SizedBox.shrink(),
         ),
@@ -1673,7 +1767,6 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
   Widget _seccion(String titulo, List<Widget> campos) {
     return SectionCard(titulo: titulo, children: campos);
   }
-
 
   Widget _fila3(Widget a, Widget b, Widget c) {
     final w = MediaQuery.of(context).size.width;
@@ -1773,7 +1866,6 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
               // "Guardar" (botón de abajo) no revisaba los de arriba.
               cacheExtent: 100000,
               children: [
-
                 // ── Fila 1: Código · Nro Póliza · Fechas ─────────────────────
                 _seccion('Identificación y Vigencia', [
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1792,8 +1884,9 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: _fechaCampo('F. Inicio', _fIniCtrl, fIni,
-                          (d) => fIni = d, autoFin: true),
+                      child: _fechaCampo(
+                          'F. Inicio', _fIniCtrl, fIni, (d) => fIni = d,
+                          autoFin: true),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1804,8 +1897,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: _fechaCampo('F. Expedición', _fExpCtrl, fExp,
-                          (d) => fExp = d),
+                      child: _fechaCampo(
+                          'F. Expedición', _fExpCtrl, fExp, (d) => fExp = d),
                     ),
                   ]),
                 ]),
@@ -1827,10 +1920,11 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                             // mantenerActual: false — el Ramo/Producto de la
                             // aseguradora anterior no pertenecen a esta, no
                             // hay que preservarlos en la lista.
-                            ramosDisponibles =
-                                _calcularRamosDisponibles(v, mantenerActual: false);
+                            ramosDisponibles = _calcularRamosDisponibles(v,
+                                mantenerActual: false);
                             if (ramo != null &&
-                                !ramosDisponibles.any((r) => r.id == ramo!.id)) {
+                                !ramosDisponibles
+                                    .any((r) => r.id == ramo!.id)) {
                               ramo = null;
                             }
                             producto = null;
@@ -1871,7 +1965,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                         ),
                         child: Text(
                           ramo != null ? ramo!.porcomBaseRamo.toString() : '—',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600),
                         ),
                       ),
                     ),
@@ -1889,7 +1984,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                         onChanged: (v) {
                           setState(() {
                             producto = v;
-                            if (producto != null) _aplicarDefaultsDesdeProducto();
+                            if (producto != null)
+                              _aplicarDefaultsDesdeProducto();
                           });
                         },
                         validator: (x) => x == null ? 'Requerido' : null,
@@ -1938,8 +2034,10 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                           itemLabel: (c) => c.nombreCliente,
                           itemSubtitle: (c) {
                             final partes = [
-                              if ((c.tipodocCliente ?? '').isNotEmpty) c.tipodocCliente!,
-                              if ((c.docCliente ?? '').isNotEmpty) Fmt.doc(c.docCliente),
+                              if ((c.tipodocCliente ?? '').isNotEmpty)
+                                c.tipodocCliente!,
+                              if ((c.docCliente ?? '').isNotEmpty)
+                                Fmt.doc(c.docCliente),
                             ];
                             return partes.isEmpty ? null : partes.join(' ');
                           },
@@ -1948,9 +2046,11 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                           validator: (x) => x == null ? 'Requerido' : null,
                           onCrear: (ctx) async {
                             final nuevoId = await Navigator.of(ctx).push<int>(
-                              MaterialPageRoute(builder: (_) => const FormCliente()),
+                              MaterialPageRoute(
+                                  builder: (_) => const FormCliente()),
                             );
-                            if (nuevoId != null) return await _asegurarCliente(nuevoId);
+                            if (nuevoId != null)
+                              return await _asegurarCliente(nuevoId);
                             return null;
                           },
                         ),
@@ -1967,8 +2067,11 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                   ),
                   const SizedBox(height: 12),
                   _fila3(
-                    _campo('Bien Asegurado / Identificación *', _bienCtrl, req: true),
-                    _campo('Vlr. Asegurado', _vlrAsegCtrl, num: true, money: true,
+                    _campo('Bien Asegurado / Identificación *', _bienCtrl,
+                        req: true),
+                    _campo('Vlr. Asegurado', _vlrAsegCtrl,
+                        num: true,
+                        money: true,
                         onEditingComplete: () => _formatearMoney(_vlrAsegCtrl)),
                     BuscadorDropdown<IntermediarioLite>(
                       label: 'Intermediario',
@@ -1984,16 +2087,23 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                 // ── Valores ───────────────────────────────────────────────────
                 _seccion('Valores', [
                   _fila3(
-                    _campo('Vlr. Prima', _primaCtrl, num: true, money: true,
+                    _campo('Vlr. Prima', _primaCtrl,
+                        num: true,
+                        money: true,
                         helper: 'Ej: 1.500.000,00',
                         onEditingComplete: () {
                           _formatearMoney(_primaCtrl);
                           _recalcularBaseCom();
                         },
                         onChanged: (_) => _recalcularBaseCom()),
-                    _campo('Vlr. Total', _valorPolizaCtrl, num: true, money: true,
-                        onEditingComplete: () => _formatearMoney(_valorPolizaCtrl)),
-                    _campo('Vlr. Base Com.', _vlrBaseComCtrl, num: true, money: true,
+                    _campo('Vlr. Total', _valorPolizaCtrl,
+                        num: true,
+                        money: true,
+                        onEditingComplete: () =>
+                            _formatearMoney(_valorPolizaCtrl)),
+                    _campo('Vlr. Base Com.', _vlrBaseComCtrl,
+                        num: true,
+                        money: true,
                         helper: 'Automático, editable',
                         onEditingComplete: () {
                           _formatearMoney(_vlrBaseComCtrl);
@@ -2007,7 +2117,9 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                 _seccion('Comisiones', [
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Expanded(
-                      child: _campo('% Com.', _porcComCtrl, num: true, maxDec: 5,
+                      child: _campo('% Com.', _porcComCtrl,
+                          num: true,
+                          maxDec: 5,
                           helper: 'Desde producto',
                           onEditingComplete: () {
                             _formatearNum(_porcComCtrl);
@@ -2017,24 +2129,36 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _campo('Vlr. Com.', _vlrComCtrl, num: true, money: true,
+                      child: _campo('Vlr. Com.', _vlrComCtrl,
+                          num: true,
+                          money: true,
                           helper: 'Automático, editable',
-                          onEditingComplete: () => _formatearMoney(_vlrComCtrl)),
+                          onEditingComplete: () =>
+                              _formatearMoney(_vlrComCtrl)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _campo('+ Com. Fija', _vlrComFijaCtrl, num: true, money: true,
-                          onEditingComplete: () => _formatearMoney(_vlrComFijaCtrl)),
+                      child: _campo('+ Com. Fija', _vlrComFijaCtrl,
+                          num: true,
+                          money: true,
+                          onEditingComplete: () =>
+                              _formatearMoney(_vlrComFijaCtrl)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _campo('% Com. Adicional', _porcomAdicCtrl, num: true, maxDec: 5,
-                          onEditingComplete: () => _formatearNum(_porcomAdicCtrl)),
+                      child: _campo('% Com. Adicional', _porcomAdicCtrl,
+                          num: true,
+                          maxDec: 5,
+                          onEditingComplete: () =>
+                              _formatearNum(_porcomAdicCtrl)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _campo('Vlr. Com. Adicional', _vlrComAdicCtrl, num: true, money: true,
-                          onEditingComplete: () => _formatearMoney(_vlrComAdicCtrl)),
+                      child: _campo('Vlr. Com. Adicional', _vlrComAdicCtrl,
+                          num: true,
+                          money: true,
+                          onEditingComplete: () =>
+                              _formatearMoney(_vlrComAdicCtrl)),
                     ),
                   ]),
                   const SizedBox(height: 12),
@@ -2047,7 +2171,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                         num: true,
                         money: true,
                         helper: 'Base para repartir entre asesores',
-                        onEditingComplete: () => _formatearMoney(_comDistribCtrl),
+                        onEditingComplete: () =>
+                            _formatearMoney(_comDistribCtrl),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -2058,7 +2183,8 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                         num: true,
                         money: true,
                         helper: 'Base para repartir com. adicional',
-                        onEditingComplete: () => _formatearMoney(_comAdicDistribCtrl),
+                        onEditingComplete: () =>
+                            _formatearMoney(_comAdicDistribCtrl),
                       ),
                     ),
                   ]),
@@ -2066,67 +2192,103 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
 
                 // ── Distribución de comisiones ────────────────────────────────
                 _seccion('Distribución de Comisiones', [
-                  _filaAsesor('Asesor 1', asesor1,
-                      (v) => setState(() => asesor1 = v), _porcomAsesor1Ctrl, _comDistribCtrl, req: true),
+                  _filaAsesor(
+                      'Asesor 1',
+                      asesor1,
+                      (v) => setState(() => asesor1 = v),
+                      _porcomAsesor1Ctrl,
+                      _comDistribCtrl,
+                      req: true),
                   const SizedBox(height: 12),
-                  _filaAsesor('Asesor 2', asesor2,
-                      (v) => setState(() => asesor2 = v), _porcomAsesor2Ctrl, _comDistribCtrl),
+                  _filaAsesor(
+                      'Asesor 2',
+                      asesor2,
+                      (v) => setState(() => asesor2 = v),
+                      _porcomAsesor2Ctrl,
+                      _comDistribCtrl),
                   const SizedBox(height: 12),
-                  _filaAsesor('Asesor 3', asesor3,
-                      (v) => setState(() => asesor3 = v), _porcomAsesor3Ctrl, _comDistribCtrl),
+                  _filaAsesor(
+                      'Asesor 3',
+                      asesor3,
+                      (v) => setState(() => asesor3 = v),
+                      _porcomAsesor3Ctrl,
+                      _comDistribCtrl),
                   const SizedBox(height: 12),
-                  _filaAsesor('Agencia', agencia,
-                      (v) => setState(() => agencia = v), _porcomAgenciaCtrl, _comDistribCtrl),
+                  _filaAsesor(
+                      'Agencia',
+                      agencia,
+                      (v) => setState(() => agencia = v),
+                      _porcomAgenciaCtrl,
+                      _comDistribCtrl),
                   const SizedBox(height: 8),
                   // Indicador total % principales
                   Builder(builder: (_) {
-                    final total = (_parseNumero(_porcomAsesor1Ctrl.text) ?? 0)
-                        + (_parseNumero(_porcomAsesor2Ctrl.text) ?? 0)
-                        + (_parseNumero(_porcomAsesor3Ctrl.text) ?? 0)
-                        + (_parseNumero(_porcomAgenciaCtrl.text) ?? 0);
+                    final total = (_parseNumero(_porcomAsesor1Ctrl.text) ?? 0) +
+                        (_parseNumero(_porcomAsesor2Ctrl.text) ?? 0) +
+                        (_parseNumero(_porcomAsesor3Ctrl.text) ?? 0) +
+                        (_parseNumero(_porcomAgenciaCtrl.text) ?? 0);
                     final excede = total > 100;
-                    return Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                      Icon(excede ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-                          size: 16,
-                          color: excede ? AppTheme.danger : AppTheme.green),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Total: ${total.toStringAsFixed(2)}%',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: excede ? AppTheme.danger : AppTheme.green,
-                        ),
-                      ),
-                    ]);
+                    return Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Icon(
+                              excede
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.check_circle_outline,
+                              size: 16,
+                              color: excede ? AppTheme.danger : AppTheme.green),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Total: ${total.toStringAsFixed(2)}%',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: excede ? AppTheme.danger : AppTheme.green,
+                            ),
+                          ),
+                        ]);
                   }),
                   const Divider(height: 24),
-                  _filaAsesor('Asesor Adicional', asesorAd,
-                      (v) => setState(() => asesorAd = v), _porcomAsesoradCtrl, _comAdicDistribCtrl),
+                  _filaAsesor(
+                      'Asesor Adicional',
+                      asesorAd,
+                      (v) => setState(() => asesorAd = v),
+                      _porcomAsesoradCtrl,
+                      _comAdicDistribCtrl),
                   const SizedBox(height: 12),
-                  _filaAsesor('Agencia Adicional', agenciaAd,
-                      (v) => setState(() => agenciaAd = v), _porcomAgenciaadCtrl, _comAdicDistribCtrl),
+                  _filaAsesor(
+                      'Agencia Adicional',
+                      agenciaAd,
+                      (v) => setState(() => agenciaAd = v),
+                      _porcomAgenciaadCtrl,
+                      _comAdicDistribCtrl),
                   const SizedBox(height: 8),
                   // Indicador total % adicionales
                   Builder(builder: (_) {
-                    final total = (_parseNumero(_porcomAsesoradCtrl.text) ?? 0)
-                        + (_parseNumero(_porcomAgenciaadCtrl.text) ?? 0);
+                    final total =
+                        (_parseNumero(_porcomAsesoradCtrl.text) ?? 0) +
+                            (_parseNumero(_porcomAgenciaadCtrl.text) ?? 0);
                     final excede = total > 100;
                     if (total == 0) return const SizedBox.shrink();
-                    return Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                      Icon(excede ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-                          size: 16,
-                          color: excede ? AppTheme.danger : AppTheme.green),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Total adic.: ${total.toStringAsFixed(2)}%',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: excede ? AppTheme.danger : AppTheme.green,
-                        ),
-                      ),
-                    ]);
+                    return Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Icon(
+                              excede
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.check_circle_outline,
+                              size: 16,
+                              color: excede ? AppTheme.danger : AppTheme.green),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Total adic.: ${total.toStringAsFixed(2)}%',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: excede ? AppTheme.danger : AppTheme.green,
+                            ),
+                          ),
+                        ]);
                   }),
                 ]),
 

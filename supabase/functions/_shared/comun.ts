@@ -155,6 +155,13 @@ export async function llamarGemini(opciones: {
     if (res.status === 429) {
       return { ok: false, error: "Se alcanzó el límite de uso de la IA. Intente de nuevo en un minuto.", status: 429 };
     }
+    if (res.status === 402) {
+      return {
+        ok: false,
+        error: "El servicio de IA se quedó sin crédito prepago. Avise al administrador para recargarlo.",
+        status: 402,
+      };
+    }
     if (res.status >= 500) {
       return { ok: false, error: "El servicio de IA no está disponible en este momento. Intente de nuevo.", status: 502 };
     }
