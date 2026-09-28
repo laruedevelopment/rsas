@@ -9,9 +9,16 @@
 // contraseña estándar (secret REPORTE_PDF_PASSWORD) antes de enviarlos.
 
 import { decryptPDF, isEncrypted } from "npm:@pdfsmaller/pdf-decrypt@1.0.1";
-// SheetJS desde su CDN oficial: la versión publicada en npm (0.18.5) está
-// abandonada y tiene vulnerabilidades conocidas (CVE-2023-30533, CVE-2024-22363).
-import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
+// SheetJS vendorizado (./xlsx.mjs, copiado tal cual de su CDN oficial,
+// https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs) — la versión
+// publicada en npm (0.18.5) está abandonada y tiene vulnerabilidades
+// conocidas (CVE-2023-30533, CVE-2024-22363). Antes se importaba
+// directo desde el CDN, pero el bundler de Supabase dejó de permitir
+// imports desde hosts fuera de su lista permitida (esm.sh, npm:, jsr:,
+// deno.land); vendorizar el archivo evita esa restricción sin bajar a la
+// versión vieja de npm. Para actualizar: volver a bajar el .mjs de la
+// nueva versión desde cdn.sheetjs.com y reemplazar este archivo.
+import * as XLSX from "./xlsx.mjs";
 import officeCrypto from "npm:officecrypto-tool@0.0.7";
 
 import {
