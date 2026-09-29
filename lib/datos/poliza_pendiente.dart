@@ -7,6 +7,7 @@ class PolizaPendiente {
   final String? errorMsg;
   final DateTime fcreado;
   final DateTime fultmod;
+  final DateTime? fdescartado;
 
   PolizaPendiente({
     required this.id,
@@ -17,6 +18,7 @@ class PolizaPendiente {
     this.errorMsg,
     required this.fcreado,
     required this.fultmod,
+    this.fdescartado,
   });
 
   factory PolizaPendiente.fromMap(Map<String, dynamic> m) => PolizaPendiente(
@@ -28,12 +30,27 @@ class PolizaPendiente {
         errorMsg: m['error_msg'] as String?,
         fcreado: DateTime.parse(m['fcreado'] as String),
         fultmod: DateTime.parse(m['fultmod'] as String),
+        fdescartado: m['fdescartado'] == null
+            ? null
+            : DateTime.parse(m['fdescartado'] as String),
       );
+
+  /// Días de gracia antes de borrarse sola (ver
+  /// supabase/migrations/20260929090000_polizas_pendientes_descarte_temporal.sql).
+  static const diasRetencion = 7;
+
+  int? get diasParaBorrarse {
+    if (fdescartado == null) return null;
+    final vence = fdescartado!.add(const Duration(days: diasRetencion));
+    return vence.difference(DateTime.now()).inDays.clamp(0, diasRetencion);
+  }
 
   /// Texto corto para mostrar en la lista de pendientes: nombre del cliente
   /// o número de póliza extraído, lo que haya.
   String get resumen {
     final nombre = (datos['nombre_cliente'] ?? datos['nro_poliza'])?.toString();
-    return (nombre == null || nombre.trim().isEmpty) ? 'Sin datos' : nombre.trim();
+    return (nombre == null || nombre.trim().isEmpty)
+        ? 'Sin datos'
+        : nombre.trim();
   }
 }

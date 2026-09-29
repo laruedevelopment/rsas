@@ -1462,8 +1462,9 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
         final originalId = widget.poliza!.id;
         // Al editar no se modifica quién la creó originalmente.
         data.remove('usuario_id');
-        if (estadoPoliza?.id == _estadoOriginalId)
+        if (estadoPoliza?.id == _estadoOriginalId) {
           data.remove('estado_poliza_id');
+        }
         if (data['vlrprimapagada_poliza'] == _primaPagadaOriginal) {
           data.remove('vlrprimapagada_poliza');
         }
@@ -1984,8 +1985,9 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                         onChanged: (v) {
                           setState(() {
                             producto = v;
-                            if (producto != null)
+                            if (producto != null) {
                               _aplicarDefaultsDesdeProducto();
+                            }
                           });
                         },
                         validator: (x) => x == null ? 'Requerido' : null,
@@ -2049,8 +2051,9 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                               MaterialPageRoute(
                                   builder: (_) => const FormCliente()),
                             );
-                            if (nuevoId != null)
+                            if (nuevoId != null) {
                               return await _asegurarCliente(nuevoId);
+                            }
                             return null;
                           },
                         ),

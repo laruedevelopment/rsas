@@ -47,3 +47,6 @@ supabase/.temp/
 
 # Notas locales con credenciales: nunca versionar
 README config.txt
+
+# Worktrees temporales de agentes de Claude Code
+.claude/worktrees/
