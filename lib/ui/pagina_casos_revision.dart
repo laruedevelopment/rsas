@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../datos/abono_poliza.dart';
 import '../datos/repositorio_casos.dart';
 import '../datos/repositorio_pagos.dart';
 import '../datos/repositorio_polizas.dart';
@@ -104,41 +105,129 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
         _cargar();
         return;
       }
-      final pagos = Sesion.veComisiones
-          ? (await _repoPagos.listarAbonosPorPoliza(id)).length
-          : null;
+      // Los pagos solo los ven y editan A y S (la base los oculta a Digitador).
+      final abonos = Sesion.veComisiones
+          ? await _repoPagos.listarAbonosPorPoliza(id)
+          : <AbonoPoliza>[];
       if (!mounted) return;
-      final ok = await showDialog<bool>(
+      final dia = DateFormat('dd/MM/yyyy');
+      final aAnular = await showDialog<Set<int>>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Anular póliza'),
-          content: Text(
-            'Póliza cód. $id · ${p.nroPoliza ?? '—'}\n'
-            '${p.nombreCliente ?? ''}\n'
-            'Prima: \$ ${Fmt.money(p.primaPoliza)}\n\n'
-            'Se marca como ANULADA. No se borra nada'
-            '${pagos == null ? '' : ' y sus $pagos pago(s) registrados no cambian'}. '
-            'Se puede revertir cambiando el estado desde el formulario de la póliza.',
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar')),
-            FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Anular póliza')),
-          ],
-        ),
+        builder: (ctx) {
+          final marcados = <int>{};
+          return StatefulBuilder(
+            builder: (ctx, setD) => AlertDialog(
+              title: const Text('Anular póliza'),
+              content: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Póliza cód. $id · ${p.nroPoliza ?? '—'}\n'
+                      '${p.nombreCliente ?? ''}\n'
+                      'Prima: \$ ${Fmt.money(p.primaPoliza)}\n\n'
+                      'Se marca como ANULADA; no se borra nada. Se puede '
+                      'revertir cambiando el estado desde el formulario de '
+                      'la póliza.',
+                    ),
+                    if (abonos.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                        'Pagos de esta póliza (${abonos.length}). Marque los '
+                        'que también quiere anular (dejan de sumar en los '
+                        'totales, pero quedan como historial). Los que no '
+                        'marque se dejan como están.',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.inkSoft,
+                            height: 1.35),
+                      ),
+                      const SizedBox(height: 6),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              for (final a in abonos)
+                                if (a.estadoPago == 'A')
+                                  ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const Icon(Icons.block, size: 18),
+                                    title: Text(_textoPago(a, dia)),
+                                    subtitle: const Text('Ya está anulado'),
+                                  )
+                                else
+                                  CheckboxListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    controlAffinity:
+                                        ListTileControlAffinity.leading,
+                                    value: marcados.contains(a.id),
+                                    onChanged: (v) => setD(() {
+                                      if (v == true) {
+                                        marcados.add(a.id);
+                                      } else {
+                                        marcados.remove(a.id);
+                                      }
+                                    }),
+                                    title: Text(_textoPago(a, dia)),
+                                    subtitle: Text(
+                                        'Comisión \$ ${Fmt.money(a.vlrcomision)} · '
+                                        '${labelEstadoPago(a.estadoPago)}'),
+                                  ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancelar')),
+                FilledButton(
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.danger),
+                    onPressed: () => Navigator.pop(ctx, Set<int>.of(marcados)),
+                    child: const Text('Anular póliza')),
+              ],
+            ),
+          );
+        },
       );
-      if (ok != true) return;
+      if (aAnular == null) return;
+
       await _repoPol.actualizarPoliza(id, {'estado_poliza_id': 'A'});
-      _snack('Póliza anulada');
+      var fallidos = 0;
+      for (final abonoId in aAnular) {
+        try {
+          await _repoPagos.actualizarAbono(abonoId, {'estado_pago': 'A'});
+        } catch (_) {
+          fallidos++;
+        }
+      }
+      if (aAnular.isNotEmpty) await _repoPol.refrescarEnCache([id]);
+      final hechos = aAnular.length - fallidos;
+      _snack(
+        'Póliza anulada'
+        '${hechos > 0 ? ' y $hechos pago(s) anulado(s)' : ''}'
+        '${fallidos > 0 ? '. $fallidos pago(s) no se pudieron anular: revíselos en Editar abono' : ''}',
+        error: fallidos > 0,
+      );
       _cargar();
     } catch (e) {
       _snack('Error: $e', error: true);
     }
   }
+
+  String _textoPago(AbonoPoliza a, DateFormat dia) =>
+      'Reporte #${a.idrepPago ?? '—'} · '
+      '${a.fechaPago != null ? dia.format(a.fechaPago!) : 'sin fecha'} · '
+      'Abono \$ ${Fmt.money(a.vlrabonoprima)}';
 
   /// Abre el diálogo de siempre para editar el abono del caso. Al guardar se
   /// recarga: si el dato quedó bien, la revalidación cierra el caso sola.
