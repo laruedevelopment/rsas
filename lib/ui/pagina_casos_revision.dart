@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../datos/repositorio_casos.dart';
+import '../datos/repositorio_pagos.dart';
 import '../datos/repositorio_polizas.dart';
 import '../datos/sesion.dart';
 import 'pagina_estado_cuenta.dart';
 import 'pagina_formulario_polizas.dart';
+import 'pagina_formulario_reporte.dart' show mostrarDialogoEditarAbono;
 import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
 
@@ -23,6 +25,7 @@ class PaginaCasosRevision extends StatefulWidget {
 class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
   final _repo = RepositorioCasos();
   final _repoPol = RepositorioPolizas();
+  final _repoPagos = RepositorioPagos();
   final _df = DateFormat('dd/MM/yyyy HH:mm');
 
   String _estado = 'P';
@@ -42,8 +45,17 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
       _error = null;
     });
     try {
+      // Antes de listar, cierra solos los casos cuyos datos ya se corrigieron.
+      final cerrados = await _repo.revalidar();
       final casos = await _repo.listar(estado: _estado);
-      if (mounted) setState(() => _casos = casos);
+      if (mounted) {
+        setState(() => _casos = casos);
+        if (cerrados > 0) {
+          _snack(cerrados == 1
+              ? 'Un caso ya estaba corregido y se marcó como resuelto.'
+              : '$cerrados casos ya estaban corregidos y se marcaron como resueltos.');
+        }
+      }
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {
@@ -70,6 +82,28 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
         context,
         MaterialPageRoute(builder: (_) => PaginaFormularioPolizas(poliza: p)),
       );
+    } catch (e) {
+      _snack('Error: $e', error: true);
+    }
+  }
+
+  /// Abre el diálogo de siempre para editar el abono del caso. Al guardar se
+  /// recarga: si el dato quedó bien, la revalidación cierra el caso sola.
+  Future<void> _corregirAbono(CasoRevision c) async {
+    try {
+      final abono = await _repoPagos.obtenerAbono(c.abonoId!);
+      if (!mounted) return;
+      if (abono == null) {
+        _snack('El abono ya no existe; se revisa el caso de nuevo.');
+        _cargar();
+        return;
+      }
+      if (abono.idrepPago == null) {
+        _snack('Este abono no pertenece a ningún reporte.', error: true);
+        return;
+      }
+      final guardo = await mostrarDialogoEditarAbono(context, abono);
+      if (guardo == true) _cargar();
     } catch (e) {
       _snack('Error: $e', error: true);
     }
@@ -292,7 +326,7 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
                         style: const TextStyle(fontSize: 13, height: 1.35)),
                     const SizedBox(height: 4),
                     Text(
-                      'Resuelto por ${c.resueltoPor ?? '—'}'
+                      '${c.resueltoAutomatico ? 'Resuelto automáticamente' : 'Resuelto por ${c.resueltoPor ?? '—'}'}'
                       '${c.fresuelto != null ? ' el ${_df.format(c.fresuelto!)}' : ''}',
                       style: TextStyle(fontSize: 11, color: AppTheme.inkSoft),
                     ),
@@ -333,6 +367,15 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
                           builder: (_) => PaginaEstadoCuenta.reporte(
                               idReporte: c.reporteId!)),
                     ),
+                  ),
+                if (!c.resuelto &&
+                    c.abonoId != null &&
+                    Sesion.veComisiones &&
+                    c.tipo != 'POSIBLE_DUPLICADO')
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Corregir abono'),
+                    onPressed: () => _corregirAbono(c),
                   ),
                 if (!c.resuelto)
                   FilledButton.icon(

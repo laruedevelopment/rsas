@@ -11,6 +11,7 @@ class CasoRevision {
   final String? pregunta;
   final List<int> polizas;
   final int? reporteId;
+  final int? abonoId;
   final String estado; // P = pendiente, R = resuelto
   final String? respuesta;
   final String? resueltoPor;
@@ -25,6 +26,7 @@ class CasoRevision {
     this.pregunta,
     this.polizas = const [],
     this.reporteId,
+    this.abonoId,
     required this.estado,
     this.respuesta,
     this.resueltoPor,
@@ -33,6 +35,9 @@ class CasoRevision {
   });
 
   bool get resuelto => estado == 'R';
+
+  /// Lo cerró la revalidación automática (no hay usuario que lo resolviera).
+  bool get resueltoAutomatico => resuelto && resueltoPor == null;
 
   String get nombreTipo => switch (tipo) {
         'PAGO_SIN_POLIZA' => 'Pago sin póliza',
@@ -55,6 +60,7 @@ class CasoRevision {
           .map((e) => (e as num).toInt())
           .toList(),
       reporteId: (m['reporte_id'] as num?)?.toInt(),
+      abonoId: (m['abono_id'] as num?)?.toInt(),
       estado: '${m['estado'] ?? 'P'}',
       respuesta: m['respuesta'] as String?,
       resueltoPor: quien is Map ? quien['apodo_usuario'] as String? : null,
@@ -68,7 +74,7 @@ class RepositorioCasos {
   final SupabaseClient _db = Supabase.instance.client;
   static const String _tabla = 'casos_revision';
   static const String _cols =
-      'id, tipo, titulo, descripcion, pregunta, polizas, reporte_id, estado, '
+      'id, tipo, titulo, descripcion, pregunta, polizas, reporte_id, abono_id, estado, '
       'respuesta, fresuelto, fcreado, '
       'resuelve:usuarios!casos_revision_usuario_resuelve_fkey(apodo_usuario)';
 
@@ -83,8 +89,23 @@ class RepositorioCasos {
   }
 
   Future<int> contarPendientes() async {
+    await revalidar();
     final res = await _db.from(_tabla).select('id').eq('estado', 'P');
     return (res as List).length;
+  }
+
+  /// Pide a la base que cierre los casos pendientes cuyos datos ya se
+  /// corrigieron (ver casos_revision_revalidar en
+  /// supabase/migrations/20260929120000_casos_revision_autovalidar.sql).
+  /// Devuelve cuántos cerró. Nunca falla: si la función todavía no existe
+  /// o no hay conexión, simplemente no cierra nada.
+  Future<int> revalidar() async {
+    try {
+      final res = await _db.rpc('casos_revision_revalidar');
+      return (res as num?)?.toInt() ?? 0;
+    } catch (_) {
+      return 0;
+    }
   }
 
   /// Quién y cuándo lo pone la base (trigger).

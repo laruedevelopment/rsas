@@ -37,7 +37,6 @@ extension _FirstOrNull<E> on Iterable<E> {
 // FormularioReportePago
 // ─────────────────────────────────────────────────────────────────────────────
 
-
 class FormularioReportePago extends StatefulWidget {
   final ReportePago? reporte;
   const FormularioReportePago({super.key, this.reporte});
@@ -47,16 +46,16 @@ class FormularioReportePago extends StatefulWidget {
 }
 
 class _FormularioReporteState extends State<FormularioReportePago> {
-  final _formKey        = GlobalKey<FormState>();
-  final _repoPagos      = RepositorioPagos();
-  final _repoCatalogos  = RepositorioCatalogos();
-  final _repoIA         = RepositorioIA();
-  final _df             = DateFormat('dd/MM/yyyy');
+  final _formKey = GlobalKey<FormState>();
+  final _repoPagos = RepositorioPagos();
+  final _repoCatalogos = RepositorioCatalogos();
+  final _repoIA = RepositorioIA();
+  final _df = DateFormat('dd/MM/yyyy');
 
-  bool _guardando       = false;
+  bool _guardando = false;
   bool _cargandoCatalogos = false;
-  bool _cargandoAbonos  = false;
-  bool _importando      = false;
+  bool _cargandoAbonos = false;
+  bool _importando = false;
   List<Map<String, dynamic>> _lineasPendientes = [];
 
   // Aprendizaje de correcciones IA para el Intermediario (ver
@@ -65,46 +64,49 @@ class _FormularioReporteState extends State<FormularioReportePago> {
   // si el usuario termina eligiendo un Intermediario distinto (o eligiendo
   // uno cuando la IA no sugirió ninguno) para este mismo texto/aseguradora,
   // se guarda la corrección para la próxima vez.
-  int?    _intermSugeridoPorIA;
+  int? _intermSugeridoPorIA;
   String? _textoIntermParaAprendizaje;
-  int?    _asegIdEnSugerenciaInterm;
+  int? _asegIdEnSugerenciaInterm;
 
-  List<AbonoPoliza>  _abonos        = [];
-  List<Aseguradora>  _aseguradoras  = [];
+  List<AbonoPoliza> _abonos = [];
+  List<Aseguradora> _aseguradoras = [];
   List<Intermediario> _intermediarios = [];
 
   // Campos del formulario
-  late DateTime   _fechaRep;
-  DateTime?       _finiRep;
-  DateTime?       _ffinRep;
-  String          _estadoRep = 'I';
-  Aseguradora?    _aseguradora;
-  Intermediario?  _intermediario;
+  late DateTime _fechaRep;
+  DateTime? _finiRep;
+  DateTime? _ffinRep;
+  String _estadoRep = 'I';
+  Aseguradora? _aseguradora;
+  Intermediario? _intermediario;
 
   final _ctrlPrimaManual = TextEditingController();
-  final _ctrlComManual   = TextEditingController();
-  final _ctrlObs         = TextEditingController();
+  final _ctrlComManual = TextEditingController();
+  final _ctrlObs = TextEditingController();
 
-  bool get _esNuevo   => widget.reporte == null;
+  bool get _esNuevo => widget.reporte == null;
   int? get _idReporte => widget.reporte?.id;
 
   // Totales calculados de los abonos cargados
   // Anulados (estado A) no suman, igual que en la base.
-  Iterable<AbonoPoliza> get _abonosVigentes => _abonos.where((a) => a.estadoPago != 'A');
-  num get _sumaPrima => sumarDinero(_abonosVigentes.map((a) => a.vlrabonoprima));
-  num get _sumaCom   => sumarDinero(_abonosVigentes.map((a) => a.vlrcomision + a.vlrcomad));
+  Iterable<AbonoPoliza> get _abonosVigentes =>
+      _abonos.where((a) => a.estadoPago != 'A');
+  num get _sumaPrima =>
+      sumarDinero(_abonosVigentes.map((a) => a.vlrabonoprima));
+  num get _sumaCom =>
+      sumarDinero(_abonosVigentes.map((a) => a.vlrcomision + a.vlrcomad));
 
   @override
   void initState() {
     super.initState();
     final r = widget.reporte;
-    _fechaRep    = r?.fechaRep ?? DateTime.now();
-    _finiRep     = r?.finiRep;
-    _ffinRep     = r?.ffinRep;
-    _estadoRep   = r?.estadoRep ?? 'I';
+    _fechaRep = r?.fechaRep ?? DateTime.now();
+    _finiRep = r?.finiRep;
+    _ffinRep = r?.ffinRep;
+    _estadoRep = r?.estadoRep ?? 'I';
     _ctrlPrimaManual.text = r != null ? Fmt.money(r.vlrprimaRep) : '';
-    _ctrlComManual.text   = r != null ? Fmt.money(r.vlrcomRep) : '';
-    _ctrlObs.text         = r?.obsRep ?? '';
+    _ctrlComManual.text = r != null ? Fmt.money(r.vlrcomRep) : '';
+    _ctrlObs.text = r?.obsRep ?? '';
     _cargarCatalogos();
     if (!_esNuevo) _cargarAbonos();
   }
@@ -127,19 +129,21 @@ class _FormularioReporteState extends State<FormularioReportePago> {
       ]);
       if (!mounted) return;
       setState(() {
-        _aseguradoras   = res[0] as List<Aseguradora>;
+        _aseguradoras = res[0] as List<Aseguradora>;
         _intermediarios = res[1] as List<Intermediario>;
         final r = widget.reporte;
         if (r?.asegId != null) {
           _aseguradora = _aseguradoras.firstOrNull((a) => a.id == r!.asegId);
         }
         if (r?.intermId != null) {
-          _intermediario = _intermediarios.firstOrNull((i) => i.id == r!.intermId);
+          _intermediario =
+              _intermediarios.firstOrNull((i) => i.id == r!.intermId);
         }
       });
     } catch (e) {
       if (mounted) {
-        _snack('No se pudieron cargar aseguradoras/intermediarios: $e', error: true);
+        _snack('No se pudieron cargar aseguradoras/intermediarios: $e',
+            error: true);
       }
     }
     if (mounted) setState(() => _cargandoCatalogos = false);
@@ -168,16 +172,16 @@ class _FormularioReporteState extends State<FormularioReportePago> {
       // calcula la vista vw_reportes_resumen desde los abonos, así no pueden
       // quedar desfasados ni pisar lo que agregó otro usuario.
       final data = {
-        'fecha_rep':        _fechaRep.toIso8601String().substring(0, 10),
-        'aseg_id':          _aseguradora?.id,
-        'interm_id':        _intermediario?.id,
-        'fini_rep':         _finiRep?.toIso8601String().substring(0, 10),
-        'ffin_rep':         _ffinRep?.toIso8601String().substring(0, 10),
-        'vlrprima_rep':     parseNumCO(_ctrlPrimaManual.text) ?? 0,
-        'vlrcom_rep':       parseNumCO(_ctrlComManual.text) ?? 0,
-        'estado_rep':       _estadoRep,
-        'obs_rep':          _ctrlObs.text.trim().isEmpty ? null : _ctrlObs.text.trim(),
-        'usuario_id':       Sesion.usuarioId,
+        'fecha_rep': _fechaRep.toIso8601String().substring(0, 10),
+        'aseg_id': _aseguradora?.id,
+        'interm_id': _intermediario?.id,
+        'fini_rep': _finiRep?.toIso8601String().substring(0, 10),
+        'ffin_rep': _ffinRep?.toIso8601String().substring(0, 10),
+        'vlrprima_rep': parseNumCO(_ctrlPrimaManual.text) ?? 0,
+        'vlrcom_rep': parseNumCO(_ctrlComManual.text) ?? 0,
+        'estado_rep': _estadoRep,
+        'obs_rep': _ctrlObs.text.trim().isEmpty ? null : _ctrlObs.text.trim(),
+        'usuario_id': Sesion.usuarioId,
       };
       final int idGuardado;
       if (_esNuevo) {
@@ -286,7 +290,8 @@ class _FormularioReporteState extends State<FormularioReportePago> {
       _ => null,
     };
     if (bytes == null || mimeType == null) {
-      _snack('No se pudo leer el archivo. Use PDF, XLSX, JPG, PNG o WEBP.', error: true);
+      _snack('No se pudo leer el archivo. Use PDF, XLSX, JPG, PNG o WEBP.',
+          error: true);
       return;
     }
 
@@ -297,8 +302,8 @@ class _FormularioReporteState extends State<FormularioReportePago> {
 
       // Cabecera: solo se aplica lo que efectivamente se reconoció.
       final nombreAseg = extraido.cabecera['nombre_aseguradora'] as String?;
-      final matchAseg = _matchPorNombre(
-          _aseguradoras, (a) => a.nombreAseg, nombreAseg);
+      final matchAseg =
+          _matchPorNombre(_aseguradoras, (a) => a.nombreAseg, nombreAseg);
       final asegParaAprendizaje = matchAseg ?? _aseguradora;
       final dRep = _parseFechaISO(extraido.cabecera['fecha_reporte']);
       final dIni = _parseFechaISO(extraido.cabecera['fecha_inicio_periodo']);
@@ -334,8 +339,8 @@ class _FormularioReporteState extends State<FormularioReportePago> {
           }
         } catch (_) {}
       }
-      matchInterm ??= _matchPorNombre(
-          _intermediarios, (i) => i.nombreInterm, textoInterm);
+      matchInterm ??=
+          _matchPorNombre(_intermediarios, (i) => i.nombreInterm, textoInterm);
       if (textoIntermNorm.isNotEmpty && asegParaAprendizaje != null) {
         _intermSugeridoPorIA = matchInterm?.id;
         _textoIntermParaAprendizaje = textoIntermNorm;
@@ -353,7 +358,8 @@ class _FormularioReporteState extends State<FormularioReportePago> {
       });
 
       if (extraido.lineas.isEmpty) {
-        _snack('Se completó la cabecera. No se encontraron líneas de pólizas en el documento.');
+        _snack(
+            'Se completó la cabecera. No se encontraron líneas de pólizas en el documento.');
         return;
       }
 
@@ -414,7 +420,12 @@ class _FormularioReporteState extends State<FormularioReportePago> {
   String _normalizarTexto(String s) {
     var r = s.trim().toUpperCase();
     const acentos = {
-      'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ñ': 'N',
+      'Á': 'A',
+      'É': 'E',
+      'Í': 'I',
+      'Ó': 'O',
+      'Ú': 'U',
+      'Ñ': 'N',
     };
     acentos.forEach((k, v) => r = r.replaceAll(k, v));
     return r;
@@ -516,232 +527,236 @@ class _FormularioReporteState extends State<FormularioReportePago> {
       ),
       body: Form(
         key: _formKey,
-        child: AppLayout.centered(CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: AppLayout.pagePadding,
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  // ── 1. Cabecera del reporte ──────────────────────────────
-                  _SeccionHeader(
-                      icon: Icons.description_outlined,
-                      title: 'Datos del Reporte'),
-                  const SizedBox(height: 12),
+        child: AppLayout.centered(
+            CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: AppLayout.pagePadding,
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      // ── 1. Cabecera del reporte ──────────────────────────────
+                      _SeccionHeader(
+                          icon: Icons.description_outlined,
+                          title: 'Datos del Reporte'),
+                      const SizedBox(height: 12),
 
-                  // Fecha + Estado
-                  Row(children: [
-                    Expanded(
-                      child: _DateField(
-                        label: 'Fecha del reporte *',
-                        value: _fechaRep,
-                        df: _df,
-                        onTap: () async {
-                          final d = await _pickDate(_fechaRep);
-                          if (d != null) setState(() => _fechaRep = d);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _estadoRep,
-                        decoration: const InputDecoration(
-                          labelText: 'Estado',
-                          border: OutlineInputBorder(),
+                      // Fecha + Estado
+                      Row(children: [
+                        Expanded(
+                          child: _DateField(
+                            label: 'Fecha del reporte *',
+                            value: _fechaRep,
+                            df: _df,
+                            onTap: () async {
+                              final d = await _pickDate(_fechaRep);
+                              if (d != null) setState(() => _fechaRep = d);
+                            },
+                          ),
                         ),
-                        items: kEstadoPagoLabels.entries
-                            .map((e) => DropdownMenuItem(
-                                value: e.key, child: Text(e.value)))
-                            .toList(),
-                        onChanged: (v) =>
-                            setState(() => _estadoRep = v ?? 'I'),
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 12),
-
-                  // Aseguradora + Intermediario
-                  if (_cargandoCatalogos)
-                    const LinearProgressIndicator()
-                  else ...[
-                    BuscadorDropdown<Aseguradora>(
-                      label: 'Aseguradora *',
-                      value: _aseguradora,
-                      items: _aseguradoras,
-                      itemLabel: (a) => a.nombreAseg,
-                      onChanged: (a) => setState(() => _aseguradora = a),
-                      validator: (v) => v == null ? 'Requerido' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    BuscadorDropdown<Intermediario>(
-                      label: 'Intermediario',
-                      value: _intermediario,
-                      items: _intermediarios,
-                      itemLabel: (i) => i.nombreInterm,
-                      onChanged: (i) => setState(() => _intermediario = i),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-
-                  // Período inicio – fin
-                  Row(children: [
-                    Expanded(
-                      child: _DateField(
-                        label: 'Inicio período',
-                        value: _finiRep,
-                        df: _df,
-                        onTap: () async {
-                          final d = await _pickDate(_finiRep);
-                          if (d != null) setState(() => _finiRep = d);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _DateField(
-                        label: 'Fin período',
-                        value: _ffinRep,
-                        df: _df,
-                        onTap: () async {
-                          final d = await _pickDate(_ffinRep);
-                          if (d != null) setState(() => _ffinRep = d);
-                        },
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 12),
-
-                  // Valores manuales
-                  Row(children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _ctrlPrimaManual,
-                        inputFormatters: const [NumeroCOInputFormatter()],
-                        keyboardType: const TextInputType.numberWithOptions(signed: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Vlr Prima (manual)',
-                          border: OutlineInputBorder(),
-                          prefixText: '\$ ',
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _estadoRep,
+                            decoration: const InputDecoration(
+                              labelText: 'Estado',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: kEstadoPagoLabels.entries
+                                .map((e) => DropdownMenuItem(
+                                    value: e.key, child: Text(e.value)))
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _estadoRep = v ?? 'I'),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _ctrlComManual,
-                        inputFormatters: const [NumeroCOInputFormatter()],
-                        keyboardType: const TextInputType.numberWithOptions(signed: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Vlr Comisión (manual)',
-                          border: OutlineInputBorder(),
-                          prefixText: '\$ ',
-                        ),
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _ctrlObs,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Observaciones',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                      ]),
+                      const SizedBox(height: 12),
 
-                  // ── 2. Resumen calculado (solo si no es nuevo) ───────────
-                  if (!_esNuevo) ...[
-                    _SeccionHeader(
-                        icon: Icons.calculate_outlined,
-                        title: 'Resumen Calculado'),
-                    const SizedBox(height: 12),
-                    Row(children: [
-                      Expanded(
-                        child: StatCard(
-                          width: null,
-                          label: 'Prima total (calculada)',
-                          value: '\$ ${Fmt.money(_sumaPrima)}',
-                          icon: Icons.attach_money,
-                          color: AppTheme.navy,
+                      // Aseguradora + Intermediario
+                      if (_cargandoCatalogos)
+                        const LinearProgressIndicator()
+                      else ...[
+                        BuscadorDropdown<Aseguradora>(
+                          label: 'Aseguradora *',
+                          value: _aseguradora,
+                          items: _aseguradoras,
+                          itemLabel: (a) => a.nombreAseg,
+                          onChanged: (a) => setState(() => _aseguradora = a),
+                          validator: (v) => v == null ? 'Requerido' : null,
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: StatCard(
-                          width: null,
-                          label: 'Comisión total (calculada)',
-                          value: '\$ ${Fmt.money(_sumaCom)}',
-                          icon: Icons.percent,
-                          color: AppTheme.green,
+                        const SizedBox(height: 12),
+                        BuscadorDropdown<Intermediario>(
+                          label: 'Intermediario',
+                          value: _intermediario,
+                          items: _intermediarios,
+                          itemLabel: (i) => i.nombreInterm,
+                          onChanged: (i) => setState(() => _intermediario = i),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: StatCard(
-                          width: null,
-                          label: 'Pólizas en reporte',
-                          value: '${_abonos.length}',
-                          icon: Icons.receipt_long,
-                          color: AppTheme.warning,
-                        ),
-                      ),
-                    ]),
-                    const SizedBox(height: 24),
+                      ],
+                      const SizedBox(height: 12),
 
-                    // ── 3. Tabla de abonos ───────────────────────────────
-                    Row(children: [
-                      Expanded(
-                        child: _SeccionHeader(
-                            icon: Icons.list_alt_outlined,
-                            title: 'Pólizas en este Reporte'),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton.icon(
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Añadir póliza'),
-                        onPressed: () => _abrirDialogoAbono(),
-                      ),
-                    ]),
-                    const SizedBox(height: 10),
+                      // Período inicio – fin
+                      Row(children: [
+                        Expanded(
+                          child: _DateField(
+                            label: 'Inicio período',
+                            value: _finiRep,
+                            df: _df,
+                            onTap: () async {
+                              final d = await _pickDate(_finiRep);
+                              if (d != null) setState(() => _finiRep = d);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _DateField(
+                            label: 'Fin período',
+                            value: _ffinRep,
+                            df: _df,
+                            onTap: () async {
+                              final d = await _pickDate(_ffinRep);
+                              if (d != null) setState(() => _ffinRep = d);
+                            },
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 12),
 
-                    if (_cargandoAbonos)
-                      const Center(
-                          child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: CircularProgressIndicator()))
-                    else if (_abonos.isEmpty)
-                      Card(
-                        color: cs.surfaceContainerLow,
-                        child: const Padding(
-                          padding: EdgeInsets.all(28),
-                          child: Center(
-                            child: Text(
-                              'Sin pólizas en este reporte.\nPresione "Añadir póliza" para comenzar.',
-                              textAlign: TextAlign.center,
+                      // Valores manuales
+                      Row(children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _ctrlPrimaManual,
+                            inputFormatters: const [NumeroCOInputFormatter()],
+                            keyboardType: const TextInputType.numberWithOptions(
+                                signed: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Vlr Prima (manual)',
+                              border: OutlineInputBorder(),
+                              prefixText: '\$ ',
                             ),
                           ),
                         ),
-                      )
-                    else
-                      _TablaAbonos(
-                        abonos: _abonos,
-                        onEdit: (a) => _abrirDialogoAbono(abono: a),
-                        onDelete: _confirmarEliminarAbono,
-                        onEstadoCuenta: (a) => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PaginaEstadoCuenta.poliza(
-                                idPoliza: a.idPoliza),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _ctrlComManual,
+                            inputFormatters: const [NumeroCOInputFormatter()],
+                            keyboardType: const TextInputType.numberWithOptions(
+                                signed: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Vlr Comisión (manual)',
+                              border: OutlineInputBorder(),
+                              prefixText: '\$ ',
+                            ),
                           ),
                         ),
+                      ]),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _ctrlObs,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'Observaciones',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
-                  ],
-                ]),
-              ),
+                      const SizedBox(height: 24),
+
+                      // ── 2. Resumen calculado (solo si no es nuevo) ───────────
+                      if (!_esNuevo) ...[
+                        _SeccionHeader(
+                            icon: Icons.calculate_outlined,
+                            title: 'Resumen Calculado'),
+                        const SizedBox(height: 12),
+                        Row(children: [
+                          Expanded(
+                            child: StatCard(
+                              width: null,
+                              label: 'Prima total (calculada)',
+                              value: '\$ ${Fmt.money(_sumaPrima)}',
+                              icon: Icons.attach_money,
+                              color: AppTheme.navy,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: StatCard(
+                              width: null,
+                              label: 'Comisión total (calculada)',
+                              value: '\$ ${Fmt.money(_sumaCom)}',
+                              icon: Icons.percent,
+                              color: AppTheme.green,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: StatCard(
+                              width: null,
+                              label: 'Pólizas en reporte',
+                              value: '${_abonos.length}',
+                              icon: Icons.receipt_long,
+                              color: AppTheme.warning,
+                            ),
+                          ),
+                        ]),
+                        const SizedBox(height: 24),
+
+                        // ── 3. Tabla de abonos ───────────────────────────────
+                        Row(children: [
+                          Expanded(
+                            child: _SeccionHeader(
+                                icon: Icons.list_alt_outlined,
+                                title: 'Pólizas en este Reporte'),
+                          ),
+                          const SizedBox(width: 12),
+                          FilledButton.icon(
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Añadir póliza'),
+                            onPressed: () => _abrirDialogoAbono(),
+                          ),
+                        ]),
+                        const SizedBox(height: 10),
+
+                        if (_cargandoAbonos)
+                          const Center(
+                              child: Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: CircularProgressIndicator()))
+                        else if (_abonos.isEmpty)
+                          Card(
+                            color: cs.surfaceContainerLow,
+                            child: const Padding(
+                              padding: EdgeInsets.all(28),
+                              child: Center(
+                                child: Text(
+                                  'Sin pólizas en este reporte.\nPresione "Añadir póliza" para comenzar.',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          _TablaAbonos(
+                            abonos: _abonos,
+                            onEdit: (a) => _abrirDialogoAbono(abono: a),
+                            onDelete: _confirmarEliminarAbono,
+                            onEstadoCuenta: (a) => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PaginaEstadoCuenta.poliza(
+                                    idPoliza: a.idPoliza),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ]),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ), maxWidth: AppLayout.maxTableWidth),
+            maxWidth: AppLayout.maxTableWidth),
       ),
     );
   }
@@ -766,7 +781,7 @@ class _TablaAbonos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs      = Theme.of(context).colorScheme;
+    final cs = Theme.of(context).colorScheme;
     final hScroll = ScrollController();
 
     return Card(
@@ -779,7 +794,8 @@ class _TablaAbonos extends StatelessWidget {
           controller: hScroll,
           padding: const EdgeInsets.only(bottom: 10),
           child: DataTable(
-            headingRowColor: WidgetStateProperty.all(cs.surfaceContainerHighest),
+            headingRowColor:
+                WidgetStateProperty.all(cs.surfaceContainerHighest),
             dataRowMinHeight: 52,
             dataRowMaxHeight: 68,
             columnSpacing: 12,
@@ -800,7 +816,8 @@ class _TablaAbonos extends StatelessWidget {
                 DataCell(CeldaAnchoFijo(
                   a.nroPoliza ?? '${a.idPoliza}',
                   ancho: 200,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 12),
                 )),
                 DataCell(Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -811,8 +828,7 @@ class _TablaAbonos extends StatelessWidget {
                     if (a.docCliente != null)
                       Text(
                         '${a.tipodocCliente ?? ''} ${Fmt.doc(a.docCliente)}',
-                        style:
-                            TextStyle(fontSize: 10, color: AppTheme.inkSoft),
+                        style: TextStyle(fontSize: 10, color: AppTheme.inkSoft),
                       ),
                   ],
                 )),
@@ -824,8 +840,8 @@ class _TablaAbonos extends StatelessWidget {
                         style: const TextStyle(fontSize: 12)),
                     if (a.nombreProd != null)
                       Text(a.nombreProd!,
-                          style: TextStyle(
-                              fontSize: 10, color: AppTheme.inkSoft)),
+                          style:
+                              TextStyle(fontSize: 10, color: AppTheme.inkSoft)),
                   ],
                 )),
                 DataCell(SizedBox(
@@ -881,6 +897,27 @@ class _TablaAbonos extends StatelessWidget {
   }
 }
 
+/// Abre el mismo diálogo "Editar abono" de los reportes, para corregir un
+/// abono desde fuera (p. ej. desde "Casos por revisar"). Devuelve true si
+/// se guardó. No cambia nada por su cuenta: guardar pasa por el mismo
+/// camino de siempre (la base recalcula lo pagado de la póliza).
+Future<bool?> mostrarDialogoEditarAbono(
+  BuildContext context,
+  AbonoPoliza abono,
+) {
+  final idReporte = abono.idrepPago;
+  if (idReporte == null) return Future.value(false);
+  return showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _DialogAbono(
+      idReporte: idReporte,
+      abono: abono,
+      repo: RepositorioPagos(),
+    ),
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Diálogo añadir / editar abono
 // ─────────────────────────────────────────────────────────────────────────────
@@ -901,25 +938,25 @@ class _DialogAbono extends StatefulWidget {
 }
 
 class _DialogAbonoState extends State<_DialogAbono> {
-  final _formKey     = GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormState>();
   final _repoPolizas = RepositorioPolizas();
-  final _df          = DateFormat('dd/MM/yyyy');
+  final _df = DateFormat('dd/MM/yyyy');
 
-  bool _guardando       = false;
-  bool _cargandoPoliza  = false;
+  bool _guardando = false;
+  bool _cargandoPoliza = false;
 
-  Poliza?   _poliza;
+  Poliza? _poliza;
   DateTime? _fechaPago;
-  String    _estadoPago = 'R';
+  String _estadoPago = 'R';
 
-  final _ctrlPrima    = TextEditingController();
-  final _ctrlAbono    = TextEditingController();
-  final _ctrlPorcCom  = TextEditingController();
-  final _ctrlVlrCom   = TextEditingController();
-  final _ctrlPorcAd   = TextEditingController();
-  final _ctrlVlrAd    = TextEditingController();
-  final _ctrlFactura  = TextEditingController();
-  final _ctrlObs      = TextEditingController();
+  final _ctrlPrima = TextEditingController();
+  final _ctrlAbono = TextEditingController();
+  final _ctrlPorcCom = TextEditingController();
+  final _ctrlVlrCom = TextEditingController();
+  final _ctrlPorcAd = TextEditingController();
+  final _ctrlVlrAd = TextEditingController();
+  final _ctrlFactura = TextEditingController();
+  final _ctrlObs = TextEditingController();
 
   bool get _esNuevo => widget.abono == null;
 
@@ -934,20 +971,20 @@ class _DialogAbonoState extends State<_DialogAbono> {
     _fechaPago = DateTime.now();
     final a = widget.abono;
     if (a != null) {
-      _fechaPago  = a.fechaPago ?? DateTime.now();
+      _fechaPago = a.fechaPago ?? DateTime.now();
       _estadoPago = a.estadoPago;
       // Con decimales: antes se redondeaba a pesos y al volver a
       // guardar el abono quedaba cambiado.
-      _ctrlPrima.text   = formatearNumCO(a.vlrprimaPoliza);
-      _ctrlAbono.text   = formatearNumCO(a.vlrabonoprima);
+      _ctrlPrima.text = formatearNumCO(a.vlrprimaPoliza);
+      _ctrlAbono.text = formatearNumCO(a.vlrabonoprima);
       _ctrlPorcCom.text = formatearNumCO(a.porccomision, maxDecimales: 5);
-      _ctrlVlrCom.text  = formatearNumCO(a.vlrcomision);
-      _ctrlPorcAd.text  = formatearNumCO(a.porccomad, maxDecimales: 5);
-      _ctrlVlrAd.text   = formatearNumCO(a.vlrcomad);
-      _comEditadaAMano  = true;
+      _ctrlVlrCom.text = formatearNumCO(a.vlrcomision);
+      _ctrlPorcAd.text = formatearNumCO(a.porccomad, maxDecimales: 5);
+      _ctrlVlrAd.text = formatearNumCO(a.vlrcomad);
+      _comEditadaAMano = true;
       _comAdEditadaAMano = true;
       _ctrlFactura.text = a.numFactura ?? '';
-      _ctrlObs.text     = a.obsPago ?? '';
+      _ctrlObs.text = a.obsPago ?? '';
       _cargarPolizaInicial(a.idPoliza);
     }
   }
@@ -977,22 +1014,26 @@ class _DialogAbonoState extends State<_DialogAbono> {
   void _onPolizaSeleccionada(Poliza p) {
     setState(() {
       _poliza = p;
-      _ctrlPrima.text   = formatearNumCO(p.primaPoliza);
+      _ctrlPrima.text = formatearNumCO(p.primaPoliza);
       // Sugiere lo que falta por pagar, no la prima completa: con
       // pagos previos, la prima completa sería un sobrepago.
       final saldo = p.primaPoliza - (p.vlrprimapagadaPoliza ?? 0);
-      _ctrlAbono.text   = saldo > 0 ? formatearNumCO(saldo) : '';
+      _ctrlAbono.text = saldo > 0 ? formatearNumCO(saldo) : '';
       _ctrlPorcCom.text = formatearNumCO(p.porccomPoliza ?? 0, maxDecimales: 5);
       _recalcular();
     });
   }
 
   void _recalcular() {
-    final abono   = (parseNumCO(_ctrlAbono.text) ?? 0);
-    final pCom    = (parseNumCO(_ctrlPorcCom.text) ?? 0);
-    final pComAd  = (parseNumCO(_ctrlPorcAd.text) ?? 0);
-    if (!_comEditadaAMano) _ctrlVlrCom.text = formatearNumCO(abono * pCom / 100);
-    if (!_comAdEditadaAMano) _ctrlVlrAd.text = formatearNumCO(abono * pComAd / 100);
+    final abono = (parseNumCO(_ctrlAbono.text) ?? 0);
+    final pCom = (parseNumCO(_ctrlPorcCom.text) ?? 0);
+    final pComAd = (parseNumCO(_ctrlPorcAd.text) ?? 0);
+    if (!_comEditadaAMano) {
+      _ctrlVlrCom.text = formatearNumCO(abono * pCom / 100);
+    }
+    if (!_comAdEditadaAMano) {
+      _ctrlVlrAd.text = formatearNumCO(abono * pComAd / 100);
+    }
   }
 
   Future<void> _guardar() async {
@@ -1007,20 +1048,19 @@ class _DialogAbonoState extends State<_DialogAbono> {
     setState(() => _guardando = true);
     try {
       final data = {
-        'idrep_pago':      widget.idReporte,
-        'id_poliza':       _poliza!.id,
-        'fecha_pago':      _fechaPago?.toIso8601String().substring(0, 10),
+        'idrep_pago': widget.idReporte,
+        'id_poliza': _poliza!.id,
+        'fecha_pago': _fechaPago?.toIso8601String().substring(0, 10),
         'vlrprima_poliza': (parseNumCO(_ctrlPrima.text) ?? 0),
-        'vlrabono_prima':  (parseNumCO(_ctrlAbono.text) ?? 0),
-        'porccomision':    (parseNumCO(_ctrlPorcCom.text) ?? 0),
-        'vlrcomision':     (parseNumCO(_ctrlVlrCom.text) ?? 0),
-        'porccomad':       (parseNumCO(_ctrlPorcAd.text) ?? 0),
-        'vlrcomad':        (parseNumCO(_ctrlVlrAd.text) ?? 0),
-        'num_factura':     _ctrlFactura.text.trim().isEmpty
-            ? null
-            : _ctrlFactura.text.trim(),
+        'vlrabono_prima': (parseNumCO(_ctrlAbono.text) ?? 0),
+        'porccomision': (parseNumCO(_ctrlPorcCom.text) ?? 0),
+        'vlrcomision': (parseNumCO(_ctrlVlrCom.text) ?? 0),
+        'porccomad': (parseNumCO(_ctrlPorcAd.text) ?? 0),
+        'vlrcomad': (parseNumCO(_ctrlVlrAd.text) ?? 0),
+        'num_factura':
+            _ctrlFactura.text.trim().isEmpty ? null : _ctrlFactura.text.trim(),
         'estado_pago': _estadoPago,
-        'obs_pago':    _ctrlObs.text.trim().isEmpty ? null : _ctrlObs.text.trim(),
+        'obs_pago': _ctrlObs.text.trim().isEmpty ? null : _ctrlObs.text.trim(),
       };
       if (_esNuevo) {
         await widget.repo.crearAbono(data);
@@ -1073,7 +1113,8 @@ class _DialogAbonoState extends State<_DialogAbono> {
                     onChanged: (p) {
                       if (p != null) _onPolizaSeleccionada(p);
                     },
-                    validator: (v) => v == null ? 'Seleccione una póliza' : null,
+                    validator: (v) =>
+                        v == null ? 'Seleccione una póliza' : null,
                   ),
                   const SizedBox(height: 10),
                 ],
@@ -1153,7 +1194,8 @@ class _DialogAbonoState extends State<_DialogAbono> {
                     child: TextFormField(
                       controller: _ctrlPrima,
                       inputFormatters: const [NumeroCOInputFormatter()],
-                      keyboardType: const TextInputType.numberWithOptions(signed: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(signed: true),
                       decoration: const InputDecoration(
                           labelText: 'Vlr Prima Póliza',
                           border: OutlineInputBorder(),
@@ -1167,7 +1209,8 @@ class _DialogAbonoState extends State<_DialogAbono> {
                     child: TextFormField(
                       controller: _ctrlAbono,
                       inputFormatters: const [NumeroCOInputFormatter()],
-                      keyboardType: const TextInputType.numberWithOptions(signed: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(signed: true),
                       onChanged: (_) => _recalcular(),
                       decoration: InputDecoration(
                         labelText: 'Vlr Abono Prima *',
@@ -1187,8 +1230,11 @@ class _DialogAbonoState extends State<_DialogAbono> {
                   Expanded(
                     child: TextFormField(
                       controller: _ctrlPorcCom,
-                      inputFormatters: const [NumeroCOInputFormatter(maxDecimales: 5)],
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: const [
+                        NumeroCOInputFormatter(maxDecimales: 5)
+                      ],
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       onChanged: (_) => _recalcular(),
                       decoration: const InputDecoration(
                           labelText: '% Comisión',
@@ -1202,7 +1248,8 @@ class _DialogAbonoState extends State<_DialogAbono> {
                       controller: _ctrlVlrCom,
                       inputFormatters: const [NumeroCOInputFormatter()],
                       onChanged: (_) => _comEditadaAMano = true,
-                      keyboardType: const TextInputType.numberWithOptions(signed: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(signed: true),
                       decoration: const InputDecoration(
                           labelText: 'Vlr Comisión',
                           border: OutlineInputBorder(),
@@ -1216,8 +1263,11 @@ class _DialogAbonoState extends State<_DialogAbono> {
                   Expanded(
                     child: TextFormField(
                       controller: _ctrlPorcAd,
-                      inputFormatters: const [NumeroCOInputFormatter(maxDecimales: 5)],
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: const [
+                        NumeroCOInputFormatter(maxDecimales: 5)
+                      ],
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       onChanged: (_) => _recalcular(),
                       decoration: const InputDecoration(
                           labelText: '% Com. Adicional',
@@ -1231,7 +1281,8 @@ class _DialogAbonoState extends State<_DialogAbono> {
                       controller: _ctrlVlrAd,
                       inputFormatters: const [NumeroCOInputFormatter()],
                       onChanged: (_) => _comAdEditadaAMano = true,
-                      keyboardType: const TextInputType.numberWithOptions(signed: true),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(signed: true),
                       decoration: const InputDecoration(
                           labelText: 'Vlr Com. Adicional',
                           border: OutlineInputBorder(),
@@ -1254,8 +1305,7 @@ class _DialogAbonoState extends State<_DialogAbono> {
                   controller: _ctrlObs,
                   maxLines: 2,
                   decoration: const InputDecoration(
-                      labelText: 'Observaciones',
-                      border: OutlineInputBorder()),
+                      labelText: 'Observaciones', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 4),
               ],
@@ -1300,7 +1350,7 @@ class _ChipEstadoAbono extends StatelessWidget {
       'R' => (cs.primaryContainer, cs.onPrimaryContainer),
       'I' => (AppTheme.warningContainer, AppTheme.onWarningContainer),
       'V' => (cs.errorContainer, cs.onErrorContainer),
-      _   => (cs.surfaceContainerHighest, cs.onSurfaceVariant),
+      _ => (cs.surfaceContainerHighest, cs.onSurfaceVariant),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -1308,8 +1358,7 @@ class _ChipEstadoAbono extends StatelessWidget {
           BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
       child: Text(
         labelEstadoPago(estado),
-        style:
-            TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg),
       ),
     );
   }
@@ -1328,9 +1377,7 @@ class _SeccionHeader extends StatelessWidget {
       const SizedBox(width: 8),
       Text(title,
           style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: cs.primary)),
+              fontSize: 15, fontWeight: FontWeight.bold, color: cs.primary)),
       const SizedBox(width: 8),
       Expanded(child: Divider(color: cs.primary.withOpacity(0.3))),
     ]);
@@ -1378,8 +1425,8 @@ class _InfoRow extends StatelessWidget {
         SizedBox(
           width: 110,
           child: Text('$label:',
-              style: const TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w600)),
+              style:
+                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
         ),
         Expanded(
             child: Text(value,
