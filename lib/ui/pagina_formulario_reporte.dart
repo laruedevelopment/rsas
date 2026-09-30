@@ -944,6 +944,7 @@ class _DialogAbonoState extends State<_DialogAbono> {
 
   bool _guardando = false;
   bool _cargandoPoliza = false;
+  bool _cambiandoPoliza = false;
 
   Poliza? _poliza;
   DateTime? _fechaPago;
@@ -1045,6 +1046,32 @@ class _DialogAbonoState extends State<_DialogAbono> {
       ));
       return;
     }
+    final anterior = widget.abono;
+    final cambiaDePoliza = anterior != null && anterior.idPoliza != _poliza!.id;
+    if (cambiaDePoliza) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Mover el pago a otra póliza'),
+          content: Text(
+            'El pago de \$ ${Fmt.money(parseNumCO(_ctrlAbono.text) ?? 0)} pasa de la póliza '
+            '${anterior.nroPoliza ?? anterior.idPoliza} (cód. ${anterior.idPoliza}) '
+            'a la póliza ${_poliza!.nroPoliza ?? _poliza!.id} (cód. ${_poliza!.id}).\n\n'
+            'Lo pagado y el estado de las dos pólizas se recalculan solos. '
+            '¿Continuar?',
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Mover pago')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
     setState(() => _guardando = true);
     try {
       final data = {
@@ -1068,7 +1095,10 @@ class _DialogAbonoState extends State<_DialogAbono> {
         await widget.repo.actualizarAbono(widget.abono!.id, data);
       }
       // Lo pagado y el estado de la póliza los recalcula la base.
-      await _repoPolizas.refrescarEnCache([_poliza!.id]);
+      await _repoPolizas.refrescarEnCache([
+        _poliza!.id,
+        if (cambiaDePoliza) anterior.idPoliza,
+      ]);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
@@ -1098,8 +1128,8 @@ class _DialogAbonoState extends State<_DialogAbono> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Búsqueda de póliza (solo al crear) ──────────────────────
-                if (_esNuevo) ...[
+                // ── Búsqueda de póliza (al crear, o al elegir "Cambiar póliza") ─
+                if (_esNuevo || _cambiandoPoliza) ...[
                   BuscadorDropdown<Poliza>(
                     label: 'Buscar y seleccionar póliza *',
                     value: _poliza,
@@ -1111,7 +1141,14 @@ class _DialogAbonoState extends State<_DialogAbono> {
                     itemsLoader: (q) =>
                         _repoPolizas.listar(busqueda: q, limite: 60),
                     onChanged: (p) {
-                      if (p != null) _onPolizaSeleccionada(p);
+                      if (p == null) return;
+                      // Al mover un abono existente solo cambia la póliza: los
+                      // montos ya digitados no se tocan.
+                      if (_esNuevo) {
+                        _onPolizaSeleccionada(p);
+                      } else {
+                        setState(() => _poliza = p);
+                      }
                     },
                     validator: (v) =>
                         v == null ? 'Seleccione una póliza' : null,
@@ -1141,6 +1178,15 @@ class _DialogAbonoState extends State<_DialogAbono> {
                                   fontSize: 11,
                                   color: cs.primary,
                                   fontWeight: FontWeight.bold)),
+                          const Spacer(),
+                          if (!_esNuevo && !_cambiandoPoliza)
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact),
+                              onPressed: () =>
+                                  setState(() => _cambiandoPoliza = true),
+                              child: const Text('Cambiar póliza'),
+                            ),
                         ]),
                         const SizedBox(height: 6),
                         _InfoRow('Cliente', _poliza!.nombreCliente ?? '—'),

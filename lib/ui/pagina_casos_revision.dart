@@ -7,6 +7,7 @@ import '../datos/repositorio_polizas.dart';
 import '../datos/sesion.dart';
 import 'pagina_estado_cuenta.dart';
 import 'pagina_formulario_polizas.dart';
+import '../utils/formatters.dart';
 import 'pagina_formulario_reporte.dart' show mostrarDialogoEditarAbono;
 import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
@@ -82,6 +83,58 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
         context,
         MaterialPageRoute(builder: (_) => PaginaFormularioPolizas(poliza: p)),
       );
+    } catch (e) {
+      _snack('Error: $e', error: true);
+    }
+  }
+
+  /// Marca la póliza como ANULADA (estado 'A'). No borra nada ni toca los
+  /// pagos; se revierte cambiando el estado en el formulario de la póliza.
+  /// Al recargar, la revalidación cierra el caso si ya no quedan duplicadas.
+  Future<void> _anularPoliza(int id) async {
+    try {
+      final p = await _repoPol.obtenerPoliza(id);
+      if (!mounted) return;
+      if (p == null) {
+        _snack('No se encontró la póliza cód. $id', error: true);
+        return;
+      }
+      if (p.estadoPolizaId == 'A') {
+        _snack('La póliza cód. $id ya está anulada.');
+        _cargar();
+        return;
+      }
+      final pagos = Sesion.veComisiones
+          ? (await _repoPagos.listarAbonosPorPoliza(id)).length
+          : null;
+      if (!mounted) return;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Anular póliza'),
+          content: Text(
+            'Póliza cód. $id · ${p.nroPoliza ?? '—'}\n'
+            '${p.nombreCliente ?? ''}\n'
+            'Prima: \$ ${Fmt.money(p.primaPoliza)}\n\n'
+            'Se marca como ANULADA. No se borra nada'
+            '${pagos == null ? '' : ' y sus $pagos pago(s) registrados no cambian'}. '
+            'Se puede revertir cambiando el estado desde el formulario de la póliza.',
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar')),
+            FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Anular póliza')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      await _repoPol.actualizarPoliza(id, {'estado_poliza_id': 'A'});
+      _snack('Póliza anulada');
+      _cargar();
     } catch (e) {
       _snack('Error: $e', error: true);
     }
@@ -356,6 +409,14 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
                               PaginaEstadoCuenta.poliza(idPoliza: id)),
                     ),
                   ),
+                  if (!c.resuelto && c.tipo == 'POSIBLE_DUPLICADO')
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.danger),
+                      icon: const Icon(Icons.block, size: 16),
+                      label: Text('Anular cód. $id'),
+                      onPressed: () => _anularPoliza(id),
+                    ),
                 ],
                 if (c.reporteId != null && Sesion.veComisiones)
                   OutlinedButton.icon(
