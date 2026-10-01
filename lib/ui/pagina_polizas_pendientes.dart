@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../datos/poliza_pendiente.dart';
 import '../datos/repositorio_polizas_pendientes.dart';
+import '../utils/filtros_busqueda.dart';
 import 'pagina_formulario_polizas.dart';
 import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
@@ -27,10 +28,138 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
   List<PolizaPendiente> _descartados = [];
   bool _verDescartados = false;
 
+  // Orden y filtro de la lista: por fecha (la de descarte en "Descartados",
+  // la de guardado en "Activos"), por código o por número de póliza, cada
+  // uno ascendente o descendente por separado.
+  String _ordenPor = 'fecha'; // 'fecha' | 'cod' | 'nro'
+  bool _ascendente = false;
+  final _ctrlFiltro = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _cargar();
+  }
+
+  @override
+  void dispose() {
+    _ctrlFiltro.dispose();
+    super.dispose();
+  }
+
+  /// Aplica el filtro de texto (código, número de póliza, nombre de archivo o
+  /// cliente) y el orden elegido.
+  List<PolizaPendiente> _filtrarYOrdenar(
+    List<PolizaPendiente> lista, {
+    required bool descartadas,
+  }) {
+    final q = _ctrlFiltro.text.trim();
+    final qNorm = normalizarAlfanumerico(q);
+    final qTexto = q.toUpperCase();
+    final res = q.isEmpty
+        ? List<PolizaPendiente>.of(lista)
+        : lista.where((p) {
+            return p.id.toString().contains(q.replaceFirst('#', '')) ||
+                (qNorm.isNotEmpty &&
+                    normalizarAlfanumerico(p.nroPoliza).contains(qNorm)) ||
+                (p.nombreArchivo ?? '').toUpperCase().contains(qTexto) ||
+                p.resumen.toUpperCase().contains(qTexto);
+          }).toList();
+
+    int cmp(PolizaPendiente a, PolizaPendiente b) {
+      switch (_ordenPor) {
+        case 'cod':
+          return a.id.compareTo(b.id);
+        case 'nro':
+          // Las que no tienen número quedan siempre al final.
+          if (a.nroPoliza.isEmpty != b.nroPoliza.isEmpty) {
+            return a.nroPoliza.isEmpty ? 1 : -1;
+          }
+          return a.nroPoliza.toUpperCase().compareTo(b.nroPoliza.toUpperCase());
+        default:
+          final da = descartadas ? a.fdescartado : a.fcreado;
+          final db = descartadas ? b.fdescartado : b.fcreado;
+          return (da ?? DateTime(1970)).compareTo(db ?? DateTime(1970));
+      }
+    }
+
+    res.sort((a, b) {
+      if (_ordenPor == 'nro' && a.nroPoliza.isEmpty != b.nroPoliza.isEmpty) {
+        return cmp(a, b);
+      }
+      final c = cmp(a, b);
+      return _ascendente ? c : -c;
+    });
+    return res;
+  }
+
+  Widget _barraOrden() {
+    Widget criterio(String id, String etiqueta) {
+      final activo = _ordenPor == id;
+      return Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: ChoiceChip(
+          selected: activo,
+          label: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(etiqueta),
+            if (activo) ...[
+              const SizedBox(width: 4),
+              Icon(_ascendente ? Icons.arrow_upward : Icons.arrow_downward,
+                  size: 14),
+            ],
+          ]),
+          // Tocar el criterio activo invierte el sentido; tocar otro lo
+          // elige (más reciente / mayor primero).
+          onSelected: (_) => setState(() {
+            if (activo) {
+              _ascendente = !_ascendente;
+            } else {
+              _ordenPor = id;
+              _ascendente = false;
+            }
+          }),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _ctrlFiltro,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText:
+                  'Buscar por código, número de póliza, archivo o cliente…',
+              prefixIcon: const Icon(Icons.search),
+              isDense: true,
+              suffixIcon: _ctrlFiltro.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () => setState(_ctrlFiltro.clear),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('Ordenar por: ',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              criterio('fecha',
+                  _verDescartados ? 'Fecha de descarte' : 'Fecha de guardado'),
+              criterio('cod', 'Código'),
+              criterio('nro', 'Nº póliza'),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _cargar() async {
@@ -113,9 +242,14 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final borradores = _items.where((p) => p.estado == 'borrador').toList();
-    final pendientes =
-        _items.where((p) => p.estado == 'pendiente_revision').toList();
+    final borradores = _filtrarYOrdenar(
+      _items.where((p) => p.estado == 'borrador').toList(),
+      descartadas: false,
+    );
+    final pendientes = _filtrarYOrdenar(
+      _items.where((p) => p.estado == 'pendiente_revision').toList(),
+      descartadas: false,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -156,6 +290,7 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
                         ],
                       ),
                     ),
+                    _barraOrden(),
                     Expanded(
                       child: _verDescartados
                           ? _listaDescartados()
@@ -218,7 +353,7 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
     return ListView(
       padding: AppLayout.pagePadding,
       children: [
-        for (final p in _descartados) ...[
+        for (final p in _filtrarYOrdenar(_descartados, descartadas: true)) ...[
           _fila(p, descartada: true),
           const SizedBox(height: 8),
         ],
@@ -251,10 +386,13 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
         ),
         title: Text(p.resumen),
         subtitle: Text([
+          'Cód. ${p.id}',
+          if (p.nroPoliza.isNotEmpty) 'Póliza ${p.nroPoliza}',
           if ((p.nombreArchivo ?? '').isNotEmpty) p.nombreArchivo!,
           if (p.errorMsg != null) 'Error: ${p.errorMsg}',
-          if (descartada)
-            'Se borra en ${p.diasParaBorrarse ?? 0} día(s)'
+          if (descartada && p.fdescartado != null)
+            'Descartado el ${_fecha(p.fdescartado!)} '
+                '(se borra en ${p.diasParaBorrarse ?? 0} día(s))'
           else
             'Guardado el ${_fecha(p.fcreado)}',
         ].join(' · ')),

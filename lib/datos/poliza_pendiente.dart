@@ -35,6 +35,10 @@ class PolizaPendiente {
             : DateTime.parse(m['fdescartado'] as String),
       );
 
+  /// Número de póliza extraído por la IA o digitado en el borrador ('' si no
+  /// hay).
+  String get nroPoliza => (datos['nro_poliza'] ?? '').toString().trim();
+
   /// Días de gracia antes de borrarse sola (ver
   /// supabase/migrations/20260929090000_polizas_pendientes_descarte_temporal.sql).
   static const diasRetencion = 7;
