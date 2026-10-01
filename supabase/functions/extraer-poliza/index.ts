@@ -31,15 +31,21 @@ const RESPONSE_SCHEMA = {
       type: "STRING",
       nullable: true,
       description:
-        "Nombre del TOMADOR (bloque 'TOMADOR' o 'DATOS DEL TOMADOR'). Si el documento no " +
-        "tiene un bloque de tomador aparte, el del asegurado.",
+        "Nombre del TOMADOR (bloque 'TOMADOR' o 'DATOS DEL TOMADOR'). En las pólizas de " +
+        "cumplimiento y seriedad (garantías) ese mismo cliente se llama 'Tomador', " +
+        "'Afianzado' o 'Garantizado' según la aseguradora: es el PRIMERO que aparece en el " +
+        "documento y es el que se toma como cliente. NUNCA uses aquí al asegurado o " +
+        "beneficiario de una garantía (es la entidad contratante). Fuera de las garantías, " +
+        "si el documento no tiene un bloque de tomador aparte, el del asegurado.",
     },
     doc_cliente: {
       type: "STRING",
       nullable: true,
       description:
-        "Documento del tomador, sin puntos ni espacios; conserve el guion del dígito de " +
-        "verificación del NIT si aparece (ej. '901983472-9').",
+        "Documento (NIT o cédula) del tomador / afianzado / garantizado, el mismo de " +
+        "nombre_cliente, sin puntos ni espacios; conserve el guion del dígito de " +
+        "verificación del NIT si aparece (ej. '901983472-9'). En las garantías NO es el " +
+        "NIT del asegurado/beneficiario.",
     },
     nombre_asegurado: {
       type: "STRING",
@@ -74,7 +80,12 @@ const RESPONSE_SCHEMA = {
       nullable: true,
       description:
         "Producto o plan. Si no hay un campo 'Producto'/'Plan', use el título que describe el " +
-        "tipo de póliza (ej. 'POLIZA SEGURO DE ACCIDENTES ESCOLARES' → 'Accidentes Escolares').",
+        "tipo de póliza (ej. 'POLIZA SEGURO DE ACCIDENTES ESCOLARES' → 'Accidentes Escolares'). " +
+        "OJO con las garantías: si el objeto, las observaciones o los comentarios del " +
+        "documento hablan de 'seriedad' (ej. 'garantizar la seriedad de la oferta'), el " +
+        "producto es el de SERIEDAD, NO el de cumplimiento, aunque el ramo o el título digan " +
+        "Cumplimiento. Con el catálogo, usa la fila de esa aseguradora cuyo producto sea de " +
+        "seriedad.",
     },
     fecha_inicio: { type: "STRING", nullable: true, description: "Inicio de vigencia, YYYY-MM-DD." },
     fecha_fin: { type: "STRING", nullable: true, description: "Fin de vigencia, YYYY-MM-DD." },
@@ -97,6 +108,12 @@ const INSTRUCCIONES_BASE =
   "(1.234.567,89 → 1234567.89). Devuelva números planos, sin símbolo de moneda.\n" +
   "- Fechas en día/mes/año (05/03/2026 → 2026-03-05).\n" +
   "- Distinga los bloques Tomador, Asegurado y Beneficiario cuando el documento los separa.\n" +
+  "- Pólizas de cumplimiento y seriedad (garantías) traen dos NIT: el del Tomador (también " +
+  "rotulado Afianzado o Garantizado, el primero del documento), que es el cliente, y el del " +
+  "Asegurado/Beneficiario, que es la entidad contratante. Devuelva el primero en " +
+  "nombre_cliente/doc_cliente y el segundo en asegurado/beneficiario.\n" +
+  "- Si el objeto, las observaciones o los comentarios de una garantía mencionan " +
+  "'seriedad' (de la oferta), es una póliza de seriedad, no de cumplimiento.\n" +
   "- Si un dato no aparece, devuelva null. Nunca invente valores.";
 
 type Producto = { aseguradora: string; ramo: string; producto: string };

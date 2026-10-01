@@ -878,7 +878,14 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
       final completados = await _aplicarDatosExtraidos(datos);
       final huboCliente = cliente != null;
       String avisoCliente = '';
-      if (!huboCliente) {
+      if (!huboCliente && _esPolizaDeGarantia(datos)) {
+        // Garantía: el cliente es el tomador/afianzado/garantizado y solo se
+        // busca por su NIT — si no existe, queda vacío.
+        avisoCliente = ' No existe en la base el cliente con NIT '
+            '"${datos['doc_cliente'] ?? '—'}" (${datos['nombre_cliente'] ?? '—'}), '
+            'que es el tomador/afianzado/garantizado: selecciónelo o créelo '
+            'antes de guardar.';
+      } else if (!huboCliente) {
         // Cliente nuevo, ningún documento matcheó — si para esta
         // aseguradora ya se confirmó antes que el cliente real suele venir
         // de un rol puntual (Tomador/Asegurado/Beneficiario), se sugiere
@@ -937,11 +944,26 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
 
     // La búsqueda de cliente pega al servidor — se resuelve antes del
     // setState para no mezclar await con la actualización de estado.
-    final (matchCliente, rolMatcheado) = await _buscarClienteExtraido([
-      ('tomador', texto('nombre_cliente'), texto('doc_cliente')),
-      ('asegurado', texto('nombre_asegurado'), texto('doc_asegurado')),
-      ('beneficiario', texto('nombre_beneficiario'), texto('doc_beneficiario')),
-    ]);
+    // Pólizas de cumplimiento/seriedad: el cliente es SOLO el tomador (según
+    // la aseguradora se llama Tomador, Afianzado o Garantizado; es el
+    // primero del documento). El asegurado/beneficiario es la entidad
+    // contratante, no el cliente. Se busca únicamente por su NIT; si no
+    // existe en la base, el cliente queda vacío para elegirlo o crearlo.
+    final esGarantia = _esPolizaDeGarantia(datos);
+    final (matchCliente, rolMatcheado) = await _buscarClienteExtraido(
+      esGarantia
+          ? [('tomador', texto('nombre_cliente'), texto('doc_cliente'))]
+          : [
+              ('tomador', texto('nombre_cliente'), texto('doc_cliente')),
+              ('asegurado', texto('nombre_asegurado'), texto('doc_asegurado')),
+              (
+                'beneficiario',
+                texto('nombre_beneficiario'),
+                texto('doc_beneficiario')
+              ),
+            ],
+      soloDocumento: esGarantia,
+    );
     if (matchCliente != null &&
         rolMatcheado != null &&
         matchAsegPrevio != null) {
@@ -1043,7 +1065,25 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
         } catch (_) {}
       }
 
-      final matchProd = matchAprendido ??
+      // Si el documento habla de "seriedad" (de la oferta), el producto es el
+      // de seriedad de esa aseguradora, no Cumplimiento, aunque el ramo diga
+      // Cumplimiento ni siquiera lo aprendido pisa esto.
+      final indicaSeriedad = _textoIndicaSeriedad([
+        texto('nombre_producto'),
+        texto('nombre_ramo'),
+        texto('bien_asegurado'),
+      ]);
+      final productoSeriedad = indicaSeriedad
+          ? candidatosProd.firstWhereOrNull((p) => _esProductoSeriedad(p))
+          : null;
+      if (indicaSeriedad && productoSeriedad == null && mounted) {
+        _toast('El documento parece de seriedad de la oferta, pero '
+            '${aseguradora!.nombreAseg} no tiene un producto de seriedad en el '
+            'catálogo. Revise el producto antes de guardar.');
+      }
+
+      final matchProd = productoSeriedad ??
+          matchAprendido ??
           _matchPorNombre(
               candidatosProd, (p) => p.nombreProd, texto('nombre_producto')) ??
           _matchPorNombre(
@@ -1121,8 +1161,13 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
   /// guardar, cuál rol resultó ser el correcto para esta aseguradora (ver
   /// ia_aprendizaje_rol_cliente). Devuelve el cliente encontrado y el rol
   /// que dio el match, o (null, null) si no encontró nada.
+  ///
+  /// [soloDocumento]: pólizas de garantía (cumplimiento/seriedad), donde el
+  /// cliente es únicamente el tomador y se busca solo por su NIT; si no
+  /// existe, no se cae al nombre ni a otro rol — el cliente queda vacío.
   Future<(Cliente?, String?)> _buscarClienteExtraido(
-      List<(String rol, String? nombre, String? doc)> candidatos) async {
+      List<(String rol, String? nombre, String? doc)> candidatos,
+      {bool soloDocumento = false}) async {
     try {
       for (final (rol, _, doc) in candidatos) {
         final docLimpio =
@@ -1133,6 +1178,7 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
         final match = await _repoCat.buscarClientePorDocExacto(docLimpio);
         if (match != null) return (match, rol);
       }
+      if (soloDocumento) return (null, null);
       final primero = candidatos.isNotEmpty ? candidatos.first : null;
       final nombre = primero?.$2;
       if (nombre != null && nombre.isNotEmpty) {
@@ -1154,6 +1200,27 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     }
     return (null, null);
   }
+
+  /// Pólizas de garantía: cumplimiento o seriedad de la oferta. Se detecta
+  /// por el texto del ramo, el producto o el bien asegurado.
+  bool _esFamiliaGarantia(Iterable<String?> textos) => textos.any((t) {
+        final n = _normalizarTexto(t ?? '');
+        return n.contains('CUMPLIMIENTO') || n.contains('SERIEDAD');
+      });
+
+  bool _esPolizaDeGarantia(Map<String, dynamic> datos) => _esFamiliaGarantia([
+        datos['nombre_ramo']?.toString(),
+        datos['nombre_producto']?.toString(),
+        datos['bien_asegurado']?.toString(),
+      ]);
+
+  /// El texto habla de "seriedad" (de la oferta): no es una póliza de
+  /// cumplimiento aunque el ramo diga Cumplimiento.
+  bool _textoIndicaSeriedad(Iterable<String?> textos) =>
+      textos.any((t) => _normalizarTexto(t ?? '').contains('SERIEDAD'));
+
+  bool _esProductoSeriedad(Producto? p) =>
+      p != null && _normalizarTexto(p.nombreProd).contains('SERIEDAD');
 
   T? _matchPorNombre<T>(
       List<T> lista, String Function(T) nombre, String? candidato) {
@@ -1431,6 +1498,34 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
           'La Com. a distribuir (\$ ${Fmt.money(comDistrib, dec: 2)}) no puede ser mayor a '
           'Vlr Com + Com Fija (\$ ${Fmt.money(maxComDistrib, dec: 2)}).');
       return;
+    }
+
+    // Una póliza de cumplimiento cuyo texto habla de "seriedad" (de la oferta)
+    // es de seriedad: se pide confirmar antes de guardarla con otro producto.
+    if (_esFamiliaGarantia([ramo?.nombreRamo, producto?.nombreProd]) &&
+        _textoIndicaSeriedad([_bienCtrl.text, _obsCtrl.text]) &&
+        !_esProductoSeriedad(producto)) {
+      final seguir = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('¿Es una póliza de seriedad?'),
+          content: Text(
+            'El bien asegurado o la observación mencionan "seriedad", pero el '
+            'producto elegido es "${producto?.nombreProd ?? '—'}". Una póliza '
+            'de seriedad de la oferta no se clasifica como cumplimiento.\n\n'
+            '¿Guardar con este producto de todas formas?',
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Revisar')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Guardar igual')),
+          ],
+        ),
+      );
+      if (seguir != true || !mounted) return;
     }
 
     setState(() => _guardando = true);
@@ -2068,6 +2163,67 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
                       ],
                     ],
                   ),
+                  // Vista previa para cotejar contra la póliza física: NIT o
+                  // documento y nombre / razón social del cliente elegido.
+                  if (cliente != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primaryContainer
+                            .withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color:
+                                Theme.of(context).colorScheme.primaryContainer),
+                      ),
+                      child: Wrap(
+                        spacing: 24,
+                        runSpacing: 4,
+                        children: [
+                          Text.rich(TextSpan(children: [
+                            TextSpan(
+                              text: (cliente!.tipopersCliente == 'J' ||
+                                      (cliente!.tipodocCliente ?? '') == 'NIT')
+                                  ? 'NIT: '
+                                  : '${(cliente!.tipodocCliente ?? '').isNotEmpty ? cliente!.tipodocCliente! : 'Documento'}: ',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                            TextSpan(
+                              text: (cliente!.docCliente ?? '').isNotEmpty
+                                  ? Fmt.doc(cliente!.docCliente)
+                                  : 'sin documento registrado',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontFamily: AppTheme.monoFamily,
+                                color: (cliente!.docCliente ?? '').isNotEmpty
+                                    ? null
+                                    : AppTheme.danger,
+                              ),
+                            ),
+                          ])),
+                          Text.rich(TextSpan(children: [
+                            TextSpan(
+                              text: cliente!.tipopersCliente == 'J'
+                                  ? 'Razón social: '
+                                  : 'Nombre: ',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                            TextSpan(
+                              text: cliente!.nombreCliente,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ])),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   _fila3(
                     _campo('Bien Asegurado / Identificación *', _bienCtrl,
