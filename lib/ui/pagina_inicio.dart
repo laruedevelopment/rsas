@@ -163,6 +163,7 @@ class _PaginaInicioState extends State<PaginaInicio> {
               ),
               const SizedBox(height: 16),
 
+              if (Sesion.esAdmin) ...[
               // ── Dashboard gerencial ────────────────────────────────────────
               _NavCard(
                 icon: Icons.insights_outlined,
@@ -175,6 +176,7 @@ class _PaginaInicioState extends State<PaginaInicio> {
                 ),
               ),
               const SizedBox(height: 10),
+              ],
 
               // ── Pólizas ────────────────────────────────────────────────────
               _NavCard(

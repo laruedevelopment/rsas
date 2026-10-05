@@ -216,6 +216,12 @@ class _PaginaDashboardState extends State<PaginaDashboard>
 
   @override
   Widget build(BuildContext context) {
+    if (!Sesion.esAdmin) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Dashboard gerencial')),
+        body: const Center(child: Text('Solo disponible para administradores.')),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dashboard gerencial'),
