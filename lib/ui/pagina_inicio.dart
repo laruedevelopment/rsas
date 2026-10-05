@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../datos/repositorio_casos.dart';
 import '../datos/sesion.dart';
+import 'dashboard/pagina_dashboard.dart';
 import 'pagina_casos_revision.dart';
 import 'pagina_login.dart';
 import 'pagina_polizas.dart';
@@ -161,6 +162,19 @@ class _PaginaInicioState extends State<PaginaInicio> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // ── Dashboard gerencial ────────────────────────────────────────
+              _NavCard(
+                icon: Icons.insights_outlined,
+                iconColor: AppTheme.green,
+                title: 'Dashboard gerencial',
+                subtitle: 'KPIs, producción, cartera, renovaciones y metas',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PaginaDashboard()),
+                ),
+              ),
+              const SizedBox(height: 10),
 
               // ── Pólizas ────────────────────────────────────────────────────
               _NavCard(
