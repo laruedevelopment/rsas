@@ -6,7 +6,8 @@
 --
 -- Indicadores: prima (prima emitida), polizas (cantidad emitida),
 --              comision (comisión recibida), recaudo (prima recaudada).
--- Quién ve: Administrador y rol S. Quién escribe: solo Administrador.
+-- Quién ve y quién escribe: solo Administrador (la regla vive en la base, no
+-- depende de qué versión de la app tenga abierta cada usuario).
 
 create table if not exists metas_comerciales (
   id         bigint generated always as identity primary key,
@@ -27,7 +28,7 @@ drop policy if exists app_lectura on metas_comerciales;
 drop policy if exists app_escritura on metas_comerciales;
 
 create policy app_lectura on metas_comerciales for select to authenticated
-  using ((select app_rol()) in ('A', 'S'));
+  using ((select app_rol()) = 'A');
 
 create policy app_escritura on metas_comerciales for all to authenticated
   using ((select app_rol()) = 'A')
