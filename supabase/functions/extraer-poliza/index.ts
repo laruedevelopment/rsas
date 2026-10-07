@@ -13,6 +13,7 @@ import {
   MAX_BYTES_ARCHIVO,
   usuarioDeLaPeticion,
 } from "../_shared/comun.ts";
+import { recortarPdf } from "../_shared/pdf.ts";
 
 const RESPONSE_SCHEMA = {
   type: "OBJECT",
@@ -92,7 +93,24 @@ const RESPONSE_SCHEMA = {
     fecha_expedicion: { type: "STRING", nullable: true, description: "Fecha de expedición/emisión, YYYY-MM-DD." },
     prima: { type: "NUMBER", nullable: true, description: "Valor de la prima (campo 'Prima' del documento)." },
     valor_asegurado: { type: "NUMBER", nullable: true, description: "Valor asegurado." },
-    valor_poliza: { type: "NUMBER", nullable: true, description: "Valor total de la póliza." },
+    valor_poliza: {
+      type: "NUMBER",
+      nullable: true,
+      description:
+        "Valor total de la póliza: el 'TOTAL A PAGAR' (o 'Total póliza'). Transcriba sus " +
+        "dígitos uno por uno, sin confundir 0, 5, 6 y 8, y compruebe que sea igual a prima + " +
+        "gastos de expedición + IVA.",
+    },
+    gastos_expedicion: {
+      type: "NUMBER",
+      nullable: true,
+      description: "Gastos de expedición (campo 'Gastos Exp.'); 0 si aparece en cero, null si no hay campo.",
+    },
+    iva: {
+      type: "NUMBER",
+      nullable: true,
+      description: "Valor del IVA de la póliza (campo 'IVA'); null si no aparece.",
+    },
     bien_asegurado: {
       type: "STRING",
       nullable: true,
@@ -114,7 +132,14 @@ const INSTRUCCIONES_BASE =
   "nombre_cliente/doc_cliente y el segundo en asegurado/beneficiario.\n" +
   "- Si el objeto, las observaciones o los comentarios de una garantía mencionan " +
   "'seriedad' (de la oferta), es una póliza de seriedad, no de cumplimiento.\n" +
+  "- Valores: devuelva por separado prima, gastos_expedicion, iva y valor_poliza (total a " +
+  "pagar). Los dígitos de los totales se transcriben con cuidado: en documentos escaneados " +
+  "es fácil confundir 0, 5, 6 y 8; la suma prima + gastos + IVA debe dar el total.
+" +
   "- Si un dato no aparece, devuelva null. Nunca invente valores.";
+
+/// Páginas que se envían a la IA de un PDF largo (override: secret MAX_PAGINAS_POLIZA).
+const MAX_PAGINAS_POLIZA = Number(Deno.env.get("MAX_PAGINAS_POLIZA") ?? "3") || 3;
 
 type Producto = { aseguradora: string; ramo: string; producto: string };
 
@@ -138,6 +163,32 @@ function textoCatalogo(catalogo: Producto[]): string {
     "use siglas o abreviaturas), devuelva nombre_aseguradora, nombre_ramo y nombre_producto " +
     "EXACTAMENTE como están en el catálogo. Si no corresponde a ninguno, devuelva lo que diga " +
     "el documento.";
+}
+
+/// La IA a veces lee mal un dígito del total en documentos escaneados (0↔5↔8).
+/// Si prima + gastos + IVA (que vienen por separado en el documento) no da el
+/// total leído, y el desfase es chico (menos del 15 %: un dígito mal leído),
+/// se usa la suma y se devuelve un aviso para que el digitador lo revise.
+/// Si el desfase es grande puede haber otros conceptos (extra prima,
+/// descuentos), así que no se toca.
+function ajustarTotal(datos: unknown): unknown {
+  if (!datos || typeof datos !== "object") return datos;
+  const d = datos as Record<string, unknown>;
+  const num = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : null);
+  const prima = num(d.prima);
+  const iva = num(d.iva);
+  const total = num(d.valor_poliza);
+  if (prima == null || iva == null || iva <= 0 || total == null) return d;
+  const gastos = num(d.gastos_expedicion) ?? 0;
+  const suma = Math.round((prima + gastos + iva) * 100) / 100;
+  const dif = Math.abs(suma - total);
+  if (dif <= 1 || dif > suma * 0.15) return d;
+  console.warn(`extraer-poliza: total leído ${total} no cuadra con prima+gastos+IVA ${suma}; se usa la suma`);
+  d.valor_poliza = suma;
+  d.aviso_total =
+    `El total leído en el documento (${total.toLocaleString("es-CO")}) no cuadraba con ` +
+    `prima + gastos + IVA; se usó ${suma.toLocaleString("es-CO")}. Verifíquelo contra el documento.`;
+  return d;
 }
 
 Deno.serve(async (req: Request) => {
@@ -167,15 +218,21 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Lo importante de una póliza está en las primeras páginas: se mandan
+    // solo esas (menos tokens y menos tiempo). Si no se puede recortar
+    // (cifrado, corrupto) se manda completo.
+    const archivo = mimeType === "application/pdf"
+      ? await recortarPdf(fileBase64, MAX_PAGINAS_POLIZA)
+      : { base64: fileBase64, paginas: null, enviadas: null };
     const resultado = await llamarGemini({
       etiqueta: "extraer-poliza",
       instrucciones: INSTRUCCIONES_BASE + textoCatalogo(catalogoProductos ?? []),
-      partes: [{ inlineData: { mimeType, data: fileBase64 } }],
+      partes: [{ inlineData: { mimeType, data: archivo.base64 } }],
       schema: RESPONSE_SCHEMA,
       maxOutputTokens: 4096,
     });
     if (!resultado.ok) return jsonError(resultado.error, resultado.status);
-    return jsonOk(resultado.datos);
+    return jsonOk(ajustarTotal(resultado.datos));
   } catch (e) {
     console.error("extraer-poliza: error inesperado", e);
     return jsonError("No se pudo procesar el archivo. Intente de nuevo.", 500);

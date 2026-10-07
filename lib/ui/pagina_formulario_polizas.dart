@@ -529,6 +529,7 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
       if (!mounted) return;
       _toast(completados > 0
           ? 'Póliza predigitada: revise los $completados campo(s) antes de guardar.'
+              '${_avisoTotal(pp.datos)}'
           : 'No se pudo aplicar la información predigitada; complétela a mano.');
     }
   }
@@ -835,6 +836,13 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     }
   }
 
+  /// Aviso de la extracción cuando el total leído no cuadraba con prima +
+  /// gastos + IVA y la función lo corrigió (ver extraer-poliza).
+  String _avisoTotal(Map<String, dynamic> datos) {
+    final a = datos['aviso_total'];
+    return a is String && a.isNotEmpty ? ' $a' : '';
+  }
+
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -908,7 +916,7 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
             'búsquelo a mano.';
       }
       _toast(completados > 0
-          ? 'Se completaron $completados campo(s) automáticamente. Revise antes de guardar.$avisoCliente'
+          ? 'Se completaron $completados campo(s) automáticamente. Revise antes de guardar.$avisoCliente${_avisoTotal(datos)}'
           : 'No se pudo identificar ningún dato en el documento.');
     } catch (e) {
       _toast('Error al importar: $e');
