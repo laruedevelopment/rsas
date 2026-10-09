@@ -134,8 +134,7 @@ const INSTRUCCIONES_BASE =
   "'seriedad' (de la oferta), es una póliza de seriedad, no de cumplimiento.\n" +
   "- Valores: devuelva por separado prima, gastos_expedicion, iva y valor_poliza (total a " +
   "pagar). Los dígitos de los totales se transcriben con cuidado: en documentos escaneados " +
-  "es fácil confundir 0, 5, 6 y 8; la suma prima + gastos + IVA debe dar el total.
-" +
+  "es fácil confundir 0, 5, 6 y 8; la suma prima + gastos + IVA debe dar el total.\n" +
   "- Si un dato no aparece, devuelva null. Nunca invente valores.";
 
 /// Páginas que se envían a la IA de un PDF largo (override: secret MAX_PAGINAS_POLIZA).
