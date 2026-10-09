@@ -45,9 +45,9 @@ const MAX_CARACTERES_XLSX = 400_000;
 /// visible, sin filas vacías): Gemini no lee el binario de un Excel.
 async function leerXlsxComoTexto(bytesOriginales: Uint8Array): Promise<string> {
   let bytes = bytesOriginales;
-  if (officeCrypto.isEncrypted(bytes)) {
+  if (officeCrypto.isEncrypted(bytes as Buffer)) { // `as Buffer`: solo tipos (TS ≥5.7), sin efecto en ejecución
     if (!PASSWORD_CONOCIDA) throw new Error("sin contraseña configurada");
-    bytes = await officeCrypto.decrypt(bytes, { password: PASSWORD_CONOCIDA });
+    bytes = await officeCrypto.decrypt(bytes as Buffer, { password: PASSWORD_CONOCIDA });
   }
 
   const libro = XLSX.read(bytes, { type: "array" });

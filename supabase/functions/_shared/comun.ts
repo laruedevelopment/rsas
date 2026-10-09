@@ -58,7 +58,7 @@ export async function usuarioDeLaPeticion(req: Request): Promise<string | null> 
     const valido = await crypto.subtle.verify(
       "HMAC",
       clave,
-      base64urlABytes(partes[2]),
+      base64urlABytes(partes[2]) as BufferSource, // solo tipos (TS ≥5.7 distingue ArrayBuffer/SharedArrayBuffer); sin efecto en ejecución
       new TextEncoder().encode(`${partes[0]}.${partes[1]}`),
     );
     if (!valido) return null;
