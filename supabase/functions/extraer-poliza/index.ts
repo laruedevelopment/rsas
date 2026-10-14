@@ -99,9 +99,7 @@ const RESPONSE_SCHEMA = {
       type: "NUMBER",
       nullable: true,
       description:
-        "Valor total de la póliza: el 'TOTAL A PAGAR' (o 'Total póliza'). Transcriba sus " +
-        "dígitos uno por uno, sin confundir 0, 5, 6 y 8, y compruebe que sea igual a prima + " +
-        "gastos de expedición + IVA.",
+        "Valor total de la póliza: el 'TOTAL A PAGAR' (o 'Total póliza').",
     },
     gastos_expedicion: {
       type: "NUMBER",
@@ -134,9 +132,7 @@ const INSTRUCCIONES_BASE =
   "nombre_cliente/doc_cliente y el segundo en asegurado/beneficiario.\n" +
   "- Si el objeto, las observaciones o los comentarios de una garantía mencionan " +
   "'seriedad' (de la oferta), es una póliza de seriedad, no de cumplimiento.\n" +
-  "- Valores: devuelva por separado prima, gastos_expedicion, iva y valor_poliza (total a " +
-  "pagar). Los dígitos de los totales se transcriben con cuidado: en documentos escaneados " +
-  "es fácil confundir 0, 5, 6 y 8; la suma prima + gastos + IVA debe dar el total.\n" +
+  "- Valores: devuelva por separado prima, gastos_expedicion, iva y valor_poliza (total a pagar).\n" +
   "- Si un dato no aparece, devuelva null. Nunca invente valores.";
 
 /// Páginas que se envían a la IA de un PDF largo (override: secret MAX_PAGINAS_POLIZA).
@@ -246,7 +242,7 @@ Deno.serve(async (req: Request) => {
       instrucciones: INSTRUCCIONES_BASE + textoCatalogo(catalogoProductos ?? []),
       partes: [{ inlineData: { mimeType, data: archivo.base64 } }],
       schema: RESPONSE_SCHEMA,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 8192,
     });
     if (!resultado.ok) return jsonError(resultado.error, resultado.status);
     return jsonOk(ajustarTotal(resultado.datos));
