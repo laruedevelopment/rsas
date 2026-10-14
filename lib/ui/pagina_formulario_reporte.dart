@@ -23,6 +23,7 @@ import 'pagina_estado_cuenta.dart';
 import 'pagina_revision_reporte_pago.dart';
 import 'widgets/buscador_dropdown.dart';
 import 'widgets/selector_fecha.dart';
+import '../utils/mensajes_error.dart';
 
 extension _FirstOrNull<E> on Iterable<E> {
   E? firstOrNull(bool Function(E) test) {
@@ -142,7 +143,7 @@ class _FormularioReporteState extends State<FormularioReportePago> {
       });
     } catch (e) {
       if (mounted) {
-        _snack('No se pudieron cargar aseguradoras/intermediarios: $e',
+        _snack(mensajeAmigable(e, accion: 'No se pudieron cargar aseguradoras/intermediarios'),
             error: true);
       }
     }
@@ -157,7 +158,7 @@ class _FormularioReporteState extends State<FormularioReportePago> {
       final data = await _repoPagos.listarAbonosPorReporte(_idReporte!);
       if (mounted) setState(() => _abonos = data);
     } catch (e) {
-      if (mounted) _snack('No se pudieron cargar los abonos: $e', error: true);
+      if (mounted) _snack(mensajeAmigable(e, accion: 'No se pudieron cargar los abonos'), error: true);
     }
     if (mounted) setState(() => _cargandoAbonos = false);
   }
@@ -245,7 +246,7 @@ class _FormularioReporteState extends State<FormularioReportePago> {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) _snack('Error: $e', error: true);
+      if (mounted) _snack(mensajeAmigable(e), error: true);
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
@@ -387,7 +388,7 @@ class _FormularioReporteState extends State<FormularioReportePago> {
             'Guarde el reporte para revisarlas y crear los abonos.');
       }
     } catch (e) {
-      _snack('Error al importar: $e', error: true);
+      _snack(mensajeAmigable(e, accion: 'Error al importar'), error: true);
     } finally {
       if (mounted) setState(() => _importando = false);
     }
@@ -456,7 +457,7 @@ class _FormularioReporteState extends State<FormularioReportePago> {
       await _cargarAbonos();
       await RepositorioPolizas().refrescarEnCache([a.idPoliza]);
     } catch (e) {
-      _snack('Error: $e', error: true);
+      _snack(mensajeAmigable(e), error: true);
     }
   }
 
@@ -1103,7 +1104,7 @@ class _DialogAbonoState extends State<_DialogAbono> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
+          content: Text(mensajeAmigable(e)),
           backgroundColor: AppTheme.danger,
         ));
       }

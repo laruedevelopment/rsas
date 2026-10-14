@@ -5,6 +5,7 @@ import '../../datos/repositorio_catalogos.dart';
 import '../../utils/formatters.dart';
 import '../theme/app_layout.dart';
 import '../widgets/section_card.dart';
+import '../../utils/mensajes_error.dart';
 
 class FormAsesor extends StatefulWidget {
   final Asesor? asesor;
@@ -93,7 +94,7 @@ class _FormAsesorState extends State<FormAsesor> {
     } catch (e) {
       if (!mounted) return;
       setState(() => cargandoId = false);
-      _toast('No se pudo cargar el siguiente ID: $e');
+      _toast(mensajeAmigable(e, accion: 'No se pudo cargar el siguiente ID'));
     }
   }
 
@@ -190,7 +191,7 @@ class _FormAsesorState extends State<FormAsesor> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _toast('Error guardando: $e');
+      _toast(mensajeAmigable(e, accion: 'Error guardando'));
     } finally {
       if (mounted) setState(() => guardando = false);
     }

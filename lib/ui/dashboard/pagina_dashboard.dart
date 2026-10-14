@@ -16,6 +16,7 @@ import '../widgets/selector_fecha.dart';
 import 'dashboard_motor.dart';
 import 'dashboard_widgets.dart';
 import 'dialogo_metas.dart';
+import '../../utils/mensajes_error.dart';
 
 /// Dashboard gerencial: KPIs, producción, comercial, cartera, renovaciones y
 /// metas, con filtros globales y comparación contra un período anterior.
@@ -125,7 +126,7 @@ class _PaginaDashboardState extends State<PaginaDashboard>
       if (mounted && !silencioso) {
         setState(() {
           _cargando = false;
-          _error = 'No se pudieron cargar los datos. Intente de nuevo.\n$e';
+          _error = mensajeAmigable(e, accion: 'No se pudieron cargar los datos');
         });
       }
     }

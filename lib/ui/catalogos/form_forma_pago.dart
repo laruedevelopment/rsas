@@ -3,6 +3,7 @@ import '../../datos/catalogos.dart';
 import '../../datos/repositorio_catalogos.dart';
 import '../theme/app_layout.dart';
 import '../widgets/section_card.dart';
+import '../../utils/mensajes_error.dart';
 
 class FormFormaPago extends StatefulWidget {
   final FormaPago? forma;
@@ -52,7 +53,7 @@ class _FormFormaPagoState extends State<FormFormaPago> {
       if (!mounted) return;
       idCtrl.text = nextId.toString();
     } catch (e) {
-      _toast('No se pudo cargar el siguiente ID: $e');
+      _toast(mensajeAmigable(e, accion: 'No se pudo cargar el siguiente ID'));
     } finally {
       if (mounted) setState(() => cargandoId = false);
     }
@@ -100,7 +101,7 @@ class _FormFormaPagoState extends State<FormFormaPago> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _toast('Error guardando: $e');
+      _toast(mensajeAmigable(e, accion: 'Error guardando'));
     } finally {
       if (mounted) setState(() => guardando = false);
     }

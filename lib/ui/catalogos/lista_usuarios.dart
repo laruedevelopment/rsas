@@ -4,6 +4,7 @@ import '../../datos/repositorio_catalogos.dart';
 import '../../datos/sesion.dart';
 import '../theme/app_theme.dart';
 import 'form_usuario.dart';
+import '../../utils/mensajes_error.dart';
 
 class ListaUsuarios extends StatefulWidget {
   const ListaUsuarios({super.key});
@@ -58,7 +59,7 @@ class _ListaUsuariosState extends State<ListaUsuarios> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensajeAmigable(e))));
     } finally {
       if (mounted) setState(() => cargando = false);
     }

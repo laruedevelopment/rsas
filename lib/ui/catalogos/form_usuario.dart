@@ -4,6 +4,7 @@ import '../../datos/repositorio_catalogos.dart';
 import '../../datos/sesion.dart';
 import '../theme/app_layout.dart';
 import '../widgets/section_card.dart';
+import '../../utils/mensajes_error.dart';
 
 class FormUsuario extends StatefulWidget {
   final Usuario? usuario;
@@ -116,7 +117,7 @@ class _FormUsuarioState extends State<FormUsuario> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _toast('Error guardando: $e');
+      _toast(mensajeAmigable(e, accion: 'Error guardando'));
     } finally {
       if (mounted) setState(() => guardando = false);
     }

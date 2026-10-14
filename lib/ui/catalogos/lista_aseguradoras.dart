@@ -3,6 +3,7 @@ import '../../datos/catalogos.dart';
 import '../../datos/repositorio_catalogos.dart';
 import '../theme/app_theme.dart';
 import 'form_aseguradora.dart';
+import '../../utils/mensajes_error.dart';
 
 class ListaAseguradoras extends StatefulWidget {
   const ListaAseguradoras({super.key});
@@ -61,7 +62,7 @@ class _ListaAseguradorasState extends State<ListaAseguradoras> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text(mensajeAmigable(e))),
       );
     } finally {
       if (mounted) setState(() => cargando = false);

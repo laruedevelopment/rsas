@@ -4,6 +4,7 @@ import '../../utils/numeros_co.dart';
 import '../../datos/repositorio_catalogos.dart';
 import '../theme/app_layout.dart';
 import '../widgets/section_card.dart';
+import '../../utils/mensajes_error.dart';
 
 class FormRamo extends StatefulWidget {
   final Ramo? ramo;
@@ -69,7 +70,7 @@ class _FormRamoState extends State<FormRamo> {
     } catch (e) {
       if (!mounted) return;
       setState(() => cargandoId = false);
-      _toast('No se pudo cargar el siguiente ID: $e');
+      _toast(mensajeAmigable(e, accion: 'No se pudo cargar el siguiente ID'));
     }
   }
 
@@ -150,7 +151,7 @@ class _FormRamoState extends State<FormRamo> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _toast('Error guardando: $e');
+      _toast(mensajeAmigable(e, accion: 'Error guardando'));
     } finally {
       if (mounted) setState(() => guardando = false);
     }

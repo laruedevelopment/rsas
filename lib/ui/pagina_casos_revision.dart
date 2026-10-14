@@ -11,6 +11,7 @@ import 'dialogos/anular_poliza.dart';
 import 'pagina_formulario_reporte.dart' show mostrarDialogoEditarAbono;
 import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
+import '../utils/mensajes_error.dart';
 
 /// Bandeja "Casos por revisar": situaciones dudosas que el equipo debe
 /// aclarar. Cada caso dice qué se sabe y qué hay que averiguar; quien lo
@@ -58,7 +59,7 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) setState(() => _error = mensajeAmigable(e));
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -84,7 +85,7 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
         MaterialPageRoute(builder: (_) => PaginaFormularioPolizas(poliza: p)),
       );
     } catch (e) {
-      _snack('Error: $e', error: true);
+      _snack(mensajeAmigable(e), error: true);
     }
   }
 
@@ -114,7 +115,7 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
       final guardo = await mostrarDialogoEditarAbono(context, abono);
       if (guardo == true) _cargar();
     } catch (e) {
-      _snack('Error: $e', error: true);
+      _snack(mensajeAmigable(e), error: true);
     }
   }
 
@@ -172,7 +173,7 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
       _snack('Caso resuelto');
       _cargar();
     } catch (e) {
-      _snack('Error: $e', error: true);
+      _snack(mensajeAmigable(e), error: true);
     }
   }
 
@@ -182,7 +183,7 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
       _snack('Caso reabierto');
       _cargar();
     } catch (e) {
-      _snack('Error: $e', error: true);
+      _snack(mensajeAmigable(e), error: true);
     }
   }
 
@@ -229,7 +230,7 @@ class _PaginaCasosRevisionState extends State<PaginaCasosRevision> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                     ? Center(
-                        child: Text('Error: $_error',
+                        child: Text(_error ?? '',
                             style: TextStyle(color: AppTheme.danger)))
                     : _casos.isEmpty
                         ? Center(

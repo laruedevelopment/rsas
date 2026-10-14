@@ -14,6 +14,7 @@ import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
 import 'widgets/tabla_ancho_completo.dart';
 import 'widgets/stat_card.dart';
+import '../utils/mensajes_error.dart';
 
 /// Pantalla de estado de cuenta.
 /// Modos:
@@ -128,7 +129,7 @@ class _PaginaEstadoCuentaState extends State<PaginaEstadoCuenta> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Error al cargar: $e'),
+              content: Text(mensajeAmigable(e, accion: 'Error al cargar')),
               backgroundColor: AppTheme.danger),
         );
       }
@@ -172,7 +173,7 @@ class _PaginaEstadoCuentaState extends State<PaginaEstadoCuenta> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Error al generar PDF: $e'),
+              content: Text(mensajeAmigable(e, accion: 'Error al generar PDF')),
               backgroundColor: AppTheme.danger),
         );
       }
@@ -775,7 +776,7 @@ class _PaginaFacturaState extends State<_PaginaFactura> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Error: $e'), backgroundColor: AppTheme.danger),
+              content: Text(mensajeAmigable(e)), backgroundColor: AppTheme.danger),
         );
       }
     } finally {

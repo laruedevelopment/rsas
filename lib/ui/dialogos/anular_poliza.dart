@@ -7,6 +7,7 @@ import '../../datos/repositorio_polizas.dart';
 import '../../datos/sesion.dart';
 import '../../utils/formatters.dart';
 import '../theme/app_theme.dart';
+import '../../utils/mensajes_error.dart';
 
 /// Marca una póliza como ANULADA (estado 'A') después de mostrar sus datos y,
 /// para los roles que ven pagos (A y S), la lista de sus pagos con una casilla
@@ -157,7 +158,7 @@ Future<bool> anularPolizaConPagos(BuildContext context, int id) async {
     );
     return true;
   } catch (e) {
-    snack('Error: $e', error: true);
+    snack(mensajeAmigable(e), error: true);
     return false;
   }
 }

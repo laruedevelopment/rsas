@@ -9,6 +9,7 @@ import 'pagina_estado_cuenta.dart';
 import 'pagina_formulario_polizas.dart';
 import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
+import '../utils/mensajes_error.dart';
 
 /// Cómo se parecen las pólizas activas de un grupo con el mismo número.
 enum _TipoGrupo { identicas, distintaPrimaOVigencia, distintoCliente }
@@ -94,7 +95,7 @@ class _PaginaPolizasDuplicadasState extends State<PaginaPolizasDuplicadas> {
       if (!mounted) return;
       setState(() => _grupos = grupos);
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) setState(() => _error = mensajeAmigable(e));
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -177,7 +178,7 @@ class _PaginaPolizasDuplicadasState extends State<PaginaPolizasDuplicadas> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(
-                  child: Text('Error: $_error',
+                  child: Text(_error ?? '',
                       style: TextStyle(color: AppTheme.danger)))
               : _grupos.isEmpty
                   ? Center(

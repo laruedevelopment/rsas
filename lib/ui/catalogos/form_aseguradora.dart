@@ -3,6 +3,7 @@ import '../../datos/catalogos.dart';
 import '../../datos/repositorio_catalogos.dart';
 import '../theme/app_layout.dart';
 import '../widgets/section_card.dart';
+import '../../utils/mensajes_error.dart';
 
 class FormAseguradora extends StatefulWidget {
   final Aseguradora? aseguradora;
@@ -72,7 +73,7 @@ class _FormAseguradoraState extends State<FormAseguradora> {
     } catch (e) {
       if (!mounted) return;
       setState(() => cargandoId = false);
-      _toast('No se pudo cargar el siguiente ID: $e');
+      _toast(mensajeAmigable(e, accion: 'No se pudo cargar el siguiente ID'));
     }
   }
 
@@ -164,7 +165,7 @@ class _FormAseguradoraState extends State<FormAseguradora> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _toast('Error guardando: $e');
+      _toast(mensajeAmigable(e, accion: 'Error guardando'));
     } finally {
       if (mounted) setState(() => guardando = false);
     }

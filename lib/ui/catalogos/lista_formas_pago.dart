@@ -3,6 +3,7 @@ import '../../datos/catalogos.dart';
 import '../../datos/repositorio_catalogos.dart';
 import '../theme/app_theme.dart';
 import 'form_forma_pago.dart';
+import '../../utils/mensajes_error.dart';
 
 class ListaFormasPago extends StatefulWidget {
   const ListaFormasPago({super.key});
@@ -56,7 +57,7 @@ class _ListaFormasPagoState extends State<ListaFormasPago> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensajeAmigable(e))));
     } finally {
       if (mounted) setState(() => cargando = false);
     }

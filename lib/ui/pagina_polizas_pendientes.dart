@@ -6,6 +6,7 @@ import '../utils/filtros_busqueda.dart';
 import 'pagina_formulario_polizas.dart';
 import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
+import '../utils/mensajes_error.dart';
 
 /// Bandeja de trabajo: pólizas en "Borrador" (guardadas a medio llenar) o
 /// "Pendiente de revisión" (predigitadas por IA, todavía sin revisar), más
@@ -179,7 +180,7 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
         _descartados = descartados;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) setState(() => _error = mensajeAmigable(e));
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -222,7 +223,7 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+            .showSnackBar(SnackBar(content: Text(mensajeAmigable(e))));
       }
     }
   }
@@ -234,7 +235,7 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+            .showSnackBar(SnackBar(content: Text(mensajeAmigable(e))));
       }
     }
   }
@@ -266,7 +267,7 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(
-                  child: Text('Error: $_error',
+                  child: Text(_error ?? '',
                       style: TextStyle(color: AppTheme.danger)))
               : AppLayout.centered(Column(
                   children: [

@@ -14,6 +14,7 @@ import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
 import 'widgets/tabla_ancho_completo.dart';
 import 'widgets/selector_fecha.dart';
+import '../utils/mensajes_error.dart';
 
 class PaginaReportesPago extends StatefulWidget {
   const PaginaReportesPago({super.key});
@@ -68,7 +69,7 @@ class _PaginaReportesPagoState extends State<PaginaReportesPago> {
       );
       if (mounted && n == _consulta) setState(() => _reportes = data);
     } catch (e) {
-      if (mounted && n == _consulta) _snack('Error al cargar: $e', error: true);
+      if (mounted && n == _consulta) _snack(mensajeAmigable(e, accion: 'Error al cargar'), error: true);
     } finally {
       if (mounted && n == _consulta) setState(() => _cargando = false);
     }
@@ -142,7 +143,7 @@ class _PaginaReportesPagoState extends State<PaginaReportesPago> {
       _snack('Reporte #${r.id} eliminado');
       _cargar();
     } catch (e) {
-      _snack('Error: $e', error: true);
+      _snack(mensajeAmigable(e), error: true);
     }
   }
 

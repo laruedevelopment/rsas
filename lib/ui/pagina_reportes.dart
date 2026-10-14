@@ -14,6 +14,7 @@ import 'theme/app_theme.dart';
 import '../utils/numeros_co.dart';
 import 'widgets/selector_fecha.dart';
 import 'widgets/stat_card.dart';
+import '../utils/mensajes_error.dart';
 
 // ── Modelo auxiliar ───────────────────────────────────────────────────────────
 
@@ -520,7 +521,7 @@ class _PaginaReportesState extends State<PaginaReportes>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error al exportar: $e')));
+            .showSnackBar(SnackBar(content: Text(mensajeAmigable(e, accion: 'Error al exportar'))));
       }
     } finally {
       if (mounted) setState(() => _exportando = false);

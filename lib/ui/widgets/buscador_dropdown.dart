@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
+import '../../utils/mensajes_error.dart';
 
 /// Sentinel que el diálogo devuelve cuando el usuario toca "Nuevo".
 const _kNuevoSolicitado = _NuevoSolicitado();
@@ -94,7 +95,7 @@ class BuscadorDropdown<T> extends StatelessWidget {
                 if (nuevo != null) onChanged(nuevo);
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
+                  SnackBar(content: Text(mensajeAmigable(e))),
                 );
               }
             }

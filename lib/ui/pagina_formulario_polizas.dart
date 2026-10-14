@@ -23,6 +23,7 @@ import 'widgets/buscador_dropdown.dart';
 import 'widgets/section_card.dart';
 import 'widgets/selector_fecha.dart';
 import '../utils/numeros_co.dart';
+import '../utils/mensajes_error.dart';
 
 extension FirstWhereOrNullExt<E> on Iterable<E> {
   E? firstWhereOrNull(bool Function(E) test) {
@@ -685,7 +686,7 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _cargando = false);
-      _toast('Error cargando catálogos: $e');
+      _toast(mensajeAmigable(e, accion: 'Error cargando catálogos'));
     }
   }
 
@@ -832,7 +833,7 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
         }
       });
     } catch (e) {
-      _toast('Error cargando productos: $e');
+      _toast(mensajeAmigable(e, accion: 'Error cargando productos'));
     }
   }
 
@@ -919,7 +920,7 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
           ? 'Se completaron $completados campo(s) automáticamente. Revise antes de guardar.$avisoCliente${_avisoTotal(datos)}'
           : 'No se pudo identificar ningún dato en el documento.');
     } catch (e) {
-      _toast('Error al importar: $e');
+      _toast(mensajeAmigable(e, accion: 'Error al importar'));
     } finally {
       if (mounted) setState(() => _importando = false);
     }
@@ -1595,7 +1596,7 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _toast('Error guardando: $e');
+      _toast(mensajeAmigable(e, accion: 'Error guardando'));
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
@@ -1776,7 +1777,7 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
       _toast('Guardado como borrador.');
       Navigator.pop(context, true);
     } catch (e) {
-      _toast('Error guardando el borrador: $e');
+      _toast(mensajeAmigable(e, accion: 'Error guardando el borrador'));
     } finally {
       if (mounted) setState(() => _guardandoBorrador = false);
     }

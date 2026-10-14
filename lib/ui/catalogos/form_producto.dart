@@ -4,6 +4,7 @@ import '../../utils/numeros_co.dart';
 import '../../datos/repositorio_catalogos.dart';
 import '../theme/app_layout.dart';
 import '../widgets/section_card.dart';
+import '../../utils/mensajes_error.dart';
 
 class FormProducto extends StatefulWidget {
   final Producto? producto;
@@ -141,7 +142,7 @@ class _FormProductoState extends State<FormProducto> {
         cargando = false;
         cargandoId = false;
       });
-      _toast('Error cargando catálogos: $e');
+      _toast(mensajeAmigable(e, accion: 'Error cargando catálogos'));
     }
   }
 
@@ -206,7 +207,7 @@ class _FormProductoState extends State<FormProducto> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _toast('Error guardando: $e');
+      _toast(mensajeAmigable(e, accion: 'Error guardando'));
     } finally {
       if (mounted) setState(() => guardando = false);
     }

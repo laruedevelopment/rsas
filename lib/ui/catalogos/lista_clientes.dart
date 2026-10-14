@@ -7,6 +7,7 @@ import '../pagina_polizas_de_cliente.dart';
 import '../theme/app_theme.dart';
 import 'form_cliente.dart';
 import 'pagina_clientes_duplicados.dart';
+import '../../utils/mensajes_error.dart';
 
 class ListaClientes extends StatefulWidget {
   const ListaClientes({super.key});
@@ -117,7 +118,7 @@ class _ListaClientesState extends State<ListaClientes> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensajeAmigable(e))));
     } finally {
       if (mounted) setState(() => cargando = false);
     }
@@ -180,7 +181,7 @@ class _ListaClientesState extends State<ListaClientes> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensajeAmigable(e))));
     } finally {
       if (mounted) setState(() => _cargandoTodo = false);
     }

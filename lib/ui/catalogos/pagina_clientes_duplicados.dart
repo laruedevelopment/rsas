@@ -7,6 +7,7 @@ import '../pagina_polizas_de_cliente.dart';
 import '../theme/app_layout.dart';
 import '../theme/app_theme.dart';
 import 'form_cliente.dart';
+import '../../utils/mensajes_error.dart';
 
 /// Agrupa los clientes con el mismo tipo+número de documento — nunca se
 /// borra ni se fusiona nada solo, el usuario elige a mano cuál conservar.
@@ -46,7 +47,7 @@ class _PaginaClientesDuplicadosState extends State<PaginaClientesDuplicados> {
       if (!mounted) return;
       setState(() => _grupos = grupos);
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) setState(() => _error = mensajeAmigable(e));
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -110,7 +111,7 @@ class _PaginaClientesDuplicadosState extends State<PaginaClientesDuplicados> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error al fusionar: $e')));
+            .showSnackBar(SnackBar(content: Text(mensajeAmigable(e, accion: 'Error al fusionar'))));
       }
     } finally {
       if (mounted) setState(() => _fusionando = false);
@@ -137,7 +138,7 @@ class _PaginaClientesDuplicadosState extends State<PaginaClientesDuplicados> {
               ? const Center(child: CircularProgressIndicator())
               : _error != null
                   ? Center(
-                      child: Text('Error: $_error',
+                      child: Text(_error ?? '',
                           style: TextStyle(color: AppTheme.danger)))
                   : _grupos.isEmpty
                       ? Center(

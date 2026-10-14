@@ -6,6 +6,7 @@ import '../../utils/formatters.dart';
 import '../../utils/municipios.dart';
 import '../theme/app_layout.dart';
 import '../widgets/section_card.dart';
+import '../../utils/mensajes_error.dart';
 
 /// Agrega los puntos de miles al documento mientras se escribe, igual que
 /// los campos de plata — el guion del dígito de verificación de NIT (si lo
@@ -144,7 +145,7 @@ class _FormClienteState extends State<FormCliente> {
     } catch (e) {
       if (!mounted) return;
       setState(() => cargandoMunicipios = false);
-      _toast('Error cargando municipios: $e');
+      _toast(mensajeAmigable(e, accion: 'Error cargando municipios'));
     }
   }
 
@@ -300,7 +301,7 @@ class _FormClienteState extends State<FormCliente> {
         Navigator.pop(context, nuevoId);
       }
     } catch (e) {
-      _toast('Error guardando: $e');
+      _toast(mensajeAmigable(e, accion: 'Error guardando'));
     } finally {
       if (mounted) setState(() => guardando = false);
     }

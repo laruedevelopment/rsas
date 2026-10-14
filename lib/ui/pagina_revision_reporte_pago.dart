@@ -15,6 +15,7 @@ import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
 import 'widgets/buscador_dropdown.dart';
 import 'widgets/selector_fecha.dart';
+import '../utils/mensajes_error.dart';
 
 bool _mismoDia(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
@@ -364,7 +365,7 @@ class _PaginaRevisionReportePagoState
         });
         guardadas.add(f);
       } catch (e) {
-        f.errorGuardado = 'No se guardó: $e';
+        f.errorGuardado = mensajeAmigable(e, accion: 'No se guardó');
       }
     }
 

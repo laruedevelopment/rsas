@@ -6,6 +6,7 @@ import '../utils/formatters.dart';
 import 'pagina_formulario_polizas.dart';
 import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
+import '../utils/mensajes_error.dart';
 
 /// Todas las pólizas de un cliente puntual — se abre desde el botón "Ver
 /// pólizas" en el catálogo de Clientes.
@@ -42,7 +43,7 @@ class _PaginaPolizasDeClienteState extends State<PaginaPolizasDeCliente> {
       if (!mounted) return;
       setState(() => _polizas = res);
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) setState(() => _error = mensajeAmigable(e));
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -74,7 +75,7 @@ class _PaginaPolizasDeClienteState extends State<PaginaPolizasDeCliente> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(
-                  child: Text('Error: $_error',
+                  child: Text(_error ?? '',
                       style: TextStyle(color: AppTheme.danger)))
               : _polizas.isEmpty
                   ? const Center(
