@@ -120,6 +120,35 @@ class _FormClienteState extends State<FormCliente> {
     cargandoId = false;
   }
 
+  /// Minúsculas, sin tildes ni espacios repetidos: "Moniquirá " ≈ "moniquira".
+  static String _norm(String s) {
+    const de = 'áàäâãéèëêíìïîóòöôõúùüûñÁÀÄÂÃÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑ';
+    const a = 'aaaaaeeeeiiiiooooouuuunAAAAAEEEEIIIIOOOOOUUUUN';
+    final b = StringBuffer();
+    for (final r in s.runes) {
+      final c = String.fromCharCode(r);
+      final i = de.indexOf(c);
+      b.write(i >= 0 ? a[i] : c);
+    }
+    return b.toString().toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  /// Municipio que corresponde al texto escrito: coincidencia exacta (sin
+  /// tildes/mayúsculas) o, si no hay, el único que empieza o contiene el
+  /// texto. null si no hay ninguno o hay varios posibles.
+  Municipio? _resolverMunicipio(String texto) {
+    final q = _norm(texto);
+    if (q.isEmpty) return null;
+    final exactos = municipios.where((m) => _norm(m.nombreMunic) == q).toList();
+    if (exactos.isNotEmpty) return exactos.first;
+    final empieza =
+        municipios.where((m) => _norm(m.nombreMunic).startsWith(q)).toList();
+    if (empieza.length == 1) return empieza.first;
+    final contiene =
+        municipios.where((m) => _norm(m.nombreMunic).contains(q)).toList();
+    return contiene.length == 1 ? contiene.first : null;
+  }
+
   Future<void> _cargarMunicipios() async {
     try {
       final res = await repo.listarMunicipios();
@@ -424,11 +453,11 @@ class _FormClienteState extends State<FormCliente> {
                   Autocomplete<Municipio>(
                     initialValue: TextEditingValue(text: municipioInicial),
                     optionsBuilder: (TextEditingValue textEditingValue) {
-                      final query = textEditingValue.text.trim().toLowerCase();
+                      final query = _norm(textEditingValue.text);
                       if (query.isEmpty) return municipios.take(20);
                       return municipios
-                          .where((m) => m.nombreMunic.toLowerCase().contains(query))
-                          .take(20);
+                          .where((m) => _norm(m.nombreMunic).contains(query))
+                          .take(40);
                     },
                     displayStringForOption: (Municipio m) => m.nombreMunic,
                     onSelected: (Municipio m) => setState(() => municIdSel = m.id),
@@ -456,19 +485,19 @@ class _FormClienteState extends State<FormCliente> {
                         validator: (_) {
                           final texto = textEditingController.text.trim();
                           if (texto.isEmpty) return null;
-                          if (municIdSel == null) return 'Selecciona un municipio válido';
+                          // No eligió de la lista: se intenta resolver por el
+                          // texto escrito antes de dar el error.
+                          municIdSel ??= _resolverMunicipio(texto)?.id;
+                          if (municIdSel == null) {
+                            return 'Selecciona un municipio de la lista';
+                          }
                           return null;
                         },
                         onChanged: (value) {
-                          final query = value.trim().toLowerCase();
-                          Municipio? exacto;
-                          for (final m in municipios) {
-                            if (m.nombreMunic.toLowerCase() == query) {
-                              exacto = m;
-                              break;
-                            }
+                          final nuevo = _resolverMunicipio(value)?.id;
+                          if (nuevo != municIdSel) {
+                            setState(() => municIdSel = nuevo);
                           }
-                          setState(() => municIdSel = exacto?.id);
                         },
                       );
                     },
