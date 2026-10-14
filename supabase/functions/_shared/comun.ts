@@ -41,6 +41,14 @@ const JWT_SECRET = Deno.env.get("LOGIN_JWT_SECRET");
 /// (pública, viaja en la app) NO alcanza: sin esto, cualquiera podía gastar
 /// la cuota de Google llamando la función directamente.
 export async function usuarioDeLaPeticion(req: Request): Promise<string | null> {
+  return (await sesionDeLaPeticion(req))?.id ?? null;
+}
+
+/// Igual que [usuarioDeLaPeticion] pero devuelve también el rol que firmó el
+/// login en el token (A, S o D).
+export async function sesionDeLaPeticion(
+  req: Request,
+): Promise<{ id: string; rol: string } | null> {
   if (!JWT_SECRET) return null;
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.replace(/^Bearer\s+/i, "");
@@ -68,7 +76,9 @@ export async function usuarioDeLaPeticion(req: Request): Promise<string | null> 
     if (payload.role !== "authenticated" || typeof payload.exp !== "number" || payload.exp < ahora) {
       return null;
     }
-    return typeof payload.sub === "string" && payload.sub ? payload.sub : null;
+    if (typeof payload.sub !== "string" || !payload.sub) return null;
+    const rol = typeof payload.rol_app === "string" ? payload.rol_app.toUpperCase() : "";
+    return { id: payload.sub, rol };
   } catch {
     return null;
   }
@@ -206,3 +216,43 @@ export async function llamarGemini(opciones: {
     return { ok: false, error: "La respuesta de la IA llegó incompleta. Intente de nuevo.", status: 502 };
   }
 }
+
+// ── Tope diario de lecturas con IA ──────────────────────────────────────────
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+/// Lecturas con IA permitidas por usuario y día (secret IA_TOPE_DIARIO).
+/// Una carga masiva fuerte son ~50 archivos; el tope solo frena abusos o
+/// bucles, no el trabajo normal.
+export const TOPE_IA_DIARIO = Number(Deno.env.get("IA_TOPE_DIARIO") ?? "400") || 400;
+
+/// Cuenta una lectura con IA del usuario y dice si todavía está dentro del
+/// tope del día (ver ia_consumir en la migración 20261014090000). Si el
+/// contador no está disponible (migración sin correr, red) deja pasar: el
+/// tope es una protección, no puede tumbar el trabajo.
+export async function consumirCupoIA(usuarioId: string): Promise<boolean> {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !/^\d+$/.test(usuarioId)) return true;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/ia_consumir`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        apikey: SERVICE_ROLE_KEY,
+        authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({ p_usuario: Number(usuarioId), p_tope: TOPE_IA_DIARIO }),
+    });
+    if (!res.ok) {
+      console.warn(`consumirCupoIA: ${res.status}, se deja pasar`);
+      return true;
+    }
+    return (await res.json()) === true;
+  } catch (e) {
+    console.warn("consumirCupoIA: error, se deja pasar", String(e).slice(0, 120));
+    return true;
+  }
+}
+
+export const MENSAJE_TOPE_IA =
+  "Se alcanzó el límite diario de lecturas con IA. Intente mañana o avise al administrador.";

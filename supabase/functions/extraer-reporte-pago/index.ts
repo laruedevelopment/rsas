@@ -30,7 +30,9 @@ import {
   jsonOk,
   llamarGemini,
   MAX_BYTES_ARCHIVO,
-  usuarioDeLaPeticion,
+  consumirCupoIA,
+  MENSAJE_TOPE_IA,
+  sesionDeLaPeticion,
 } from "../_shared/comun.ts";
 
 const PASSWORD_CONOCIDA = Deno.env.get("REPORTE_PDF_PASSWORD") ?? "";
@@ -189,8 +191,13 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return jsonError("Método no permitido.", 405);
 
-  if (!(await usuarioDeLaPeticion(req))) {
+  const sesion = await sesionDeLaPeticion(req);
+  if (!sesion) {
     return jsonError("Su sesión no es válida o ya venció. Inicie sesión de nuevo.", 401);
+  }
+  // Los reportes de comisiones son solo para Administrador y rol S.
+  if (sesion.rol !== "A" && sesion.rol !== "S") {
+    return jsonError("No tiene permiso para leer reportes de comisiones.", 403);
   }
 
   let body: { fileBase64?: string; mimeType?: string };
@@ -210,6 +217,8 @@ Deno.serve(async (req: Request) => {
   if (bytesDeBase64(fileBase64) > MAX_BYTES_ARCHIVO) {
     return jsonError("El archivo pesa más de 15 MB. Use una versión más liviana.", 413);
   }
+
+  if (!(await consumirCupoIA(sesion.id))) return jsonError(MENSAJE_TOPE_IA, 429);
 
   // PDF/imagen van como archivo (Gemini los lee visualmente); un Excel se
   // manda como texto ya extraído acá.

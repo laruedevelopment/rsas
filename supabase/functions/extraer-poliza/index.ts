@@ -11,7 +11,9 @@ import {
   jsonOk,
   llamarGemini,
   MAX_BYTES_ARCHIVO,
-  usuarioDeLaPeticion,
+  consumirCupoIA,
+  MENSAJE_TOPE_IA,
+  sesionDeLaPeticion,
 } from "../_shared/comun.ts";
 import { recortarPdf } from "../_shared/pdf.ts";
 
@@ -207,7 +209,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return jsonError("Método no permitido.", 405);
 
-  if (!(await usuarioDeLaPeticion(req))) {
+  const sesion = await sesionDeLaPeticion(req);
+  if (!sesion) {
     return jsonError("Su sesión no es válida o ya venció. Inicie sesión de nuevo.", 401);
   }
 
@@ -228,6 +231,8 @@ Deno.serve(async (req: Request) => {
   if (bytesDeBase64(fileBase64) > MAX_BYTES_ARCHIVO) {
     return jsonError("El archivo pesa más de 15 MB. Use una versión más liviana.", 413);
   }
+
+  if (!(await consumirCupoIA(sesion.id))) return jsonError(MENSAJE_TOPE_IA, 429);
 
   try {
     // Lo importante de una póliza está en las primeras páginas: se mandan

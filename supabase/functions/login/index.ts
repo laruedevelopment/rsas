@@ -46,6 +46,11 @@ Deno.serve(async (req: Request) => {
   if (!apodo || !clave) {
     return jsonError("Faltan apodo y/o clave.", 400);
   }
+  // Límites razonables: evitan llenar la tabla de intentos con textos enormes
+  // y costos de hash con claves gigantes.
+  if (apodo.length > 64 || clave.length > 128) {
+    return jsonError("Usuario o contraseña incorrectos.", 401);
+  }
 
   try {
     const resultado = await verificarCredenciales(apodo, clave);
