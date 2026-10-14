@@ -69,8 +69,10 @@ class _PaginaDashboardState extends State<PaginaDashboard>
         desde: DateTime(h.year, 1, 1), hasta: DateTime(h.year, 12, 31));
     _tabs = TabController(length: _titulosTabs.length, vsync: this);
     _cargar();
-    // "Tiempo real": refresca solo cada 5 minutos mientras está abierto.
-    _auto = Timer.periodic(const Duration(minutes: 5), (_) {
+    // "Tiempo real": refresca solo cada 15 minutos mientras está abierto (cada
+    // recarga baja todas las pólizas y los pagos; más seguido gasta el límite
+    // de datos del plan gratuito).
+    _auto = Timer.periodic(const Duration(minutes: 15), (_) {
       if (mounted && !_cargando) _cargar(forzar: true, silencioso: true);
     });
   }
@@ -219,7 +221,8 @@ class _PaginaDashboardState extends State<PaginaDashboard>
     if (!Sesion.esAdmin) {
       return Scaffold(
         appBar: AppBar(title: const Text('Dashboard gerencial')),
-        body: const Center(child: Text('Solo disponible para administradores.')),
+        body:
+            const Center(child: Text('Solo disponible para administradores.')),
       );
     }
     return Scaffold(
@@ -867,19 +870,26 @@ class _PaginaDashboardState extends State<PaginaDashboard>
         subtitulo:
             'Cambie la dimensión; toque una fila para filtrar todo el tablero'
             '${c == null ? '' : ' · variación contra la comparación'}',
-        accion: SegmentedButton<Dim>(
-          showSelectedIcon: false,
-          style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 11.5))),
-          segments: [
-            for (final d in Dim.values.where((d) => d != Dim.cliente))
-              ButtonSegment(value: d, label: Text(etiquetaDim(d))),
-          ],
-          selected: {dim},
-          onSelectionChanged: (s) => setState(() => _dimExplorador = s.first),
-        ),
-        child: _tablaExplorador(r, dim, grupos, totalPrima),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<Dim>(
+              showSelectedIcon: false,
+              style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 11.5))),
+              segments: [
+                for (final d in Dim.values.where((d) => d != Dim.cliente))
+                  ButtonSegment(value: d, label: Text(etiquetaDim(d))),
+              ],
+              selected: {dim},
+              onSelectionChanged: (s) =>
+                  setState(() => _dimExplorador = s.first),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _tablaExplorador(r, dim, grupos, totalPrima),
+        ]),
       ),
       Rejilla(anchoMinimo: 520, maxColumnas: 2, hijos: [
         DashCard(
@@ -1510,23 +1520,29 @@ class _PaginaDashboardState extends State<PaginaDashboard>
   Future<void> _cargarMetas() async {
     if (_metasCargando) return;
     _metasCargando = true;
+    // El año se fija antes del await: si el usuario cambia de año mientras
+    // carga, la pantalla pide el nuevo en vez de dar por cargado el viejo.
+    final anio = _anioMetas;
     try {
-      final m = await _repoDash.listarMetas(_anioMetas);
+      final m = await _repoDash.listarMetas(anio);
       if (!mounted) return;
       setState(() {
         _metas = m;
         _metasError = null;
-        _metasAnioCargado = _anioMetas;
+        _metasAnioCargado = anio;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _metas = [];
         _metasError = e.toString();
-        _metasAnioCargado = _anioMetas;
+        _metasAnioCargado = anio;
       });
     } finally {
       _metasCargando = false;
+    }
+    if (mounted && _metasAnioCargado != _anioMetas) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _cargarMetas());
     }
   }
 
@@ -1537,12 +1553,16 @@ class _PaginaDashboardState extends State<PaginaDashboard>
     final metas = _metas;
     final hoy = DateTime.now();
     final motor = _motor!;
+    // Filtro por asesor: se busca su id; "Sin asesor" (o un nombre sin
+    // pólizas) no tiene id, y entonces no hay metas ni avance que mostrar
+    // (-1 no coincide con ningún asesor).
     final asesorSel = _f.asesor == null
         ? null
-        : _polizas
-            .firstWhere((p) => p.nombreAsesor == _f.asesor,
-                orElse: () => _polizas.first)
-            .asesorId;
+        : (_polizas
+                .where((p) => p.nombreAsesor == _f.asesor && p.asesorId != null)
+                .map((p) => p.asesorId)
+                .firstOrNull ??
+            -1);
     final real = motor.realesAnio(_anioMetas, asesorId: asesorSel);
 
     double metaDe(String ind, int mes) {
@@ -1620,40 +1640,44 @@ class _PaginaDashboardState extends State<PaginaDashboard>
     final primaMeta = [for (var m = 1; m <= 12; m++) metaDe('prima', m)];
 
     return [
-      Row(children: [
-        Expanded(
-            child: _encabezado('Metas y cumplimiento',
-                'La marca negra indica dónde debería ir el avance según los días transcurridos.')),
-        IconButton(
-          tooltip: 'Año anterior',
-          icon: const Icon(Icons.chevron_left),
-          onPressed: () => setState(() => _anioMetas--),
-        ),
-        Text('$_anioMetas',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-        IconButton(
-          tooltip: 'Año siguiente',
-          icon: const Icon(Icons.chevron_right),
-          onPressed: () => setState(() => _anioMetas++),
-        ),
-        if (Sesion.esAdmin)
-          FilledButton.icon(
-            onPressed: () async {
-              final guardo = await mostrarDialogoMetas(
-                context,
-                anio: _anioMetas,
-                metasActuales: _metas ?? [],
-                asesores: _asesoresDeDatos(),
-              );
-              if (guardo == true) {
-                _metasAnioCargado = 0;
-                await _cargarMetas();
-              }
-            },
-            icon: const Icon(Icons.flag_outlined, size: 18),
-            label: const Text('Configurar metas'),
-          ),
-      ]),
+      Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _encabezado('Metas y cumplimiento',
+                'La marca negra indica dónde debería ir el avance según los días transcurridos.'),
+            IconButton(
+              tooltip: 'Año anterior',
+              icon: const Icon(Icons.chevron_left),
+              onPressed: () => setState(() => _anioMetas--),
+            ),
+            Text('$_anioMetas',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            IconButton(
+              tooltip: 'Año siguiente',
+              icon: const Icon(Icons.chevron_right),
+              onPressed: () => setState(() => _anioMetas++),
+            ),
+            if (Sesion.esAdmin)
+              FilledButton.icon(
+                onPressed: () async {
+                  final guardo = await mostrarDialogoMetas(
+                    context,
+                    anio: _anioMetas,
+                    metasActuales: _metas ?? [],
+                    asesores: _asesoresDeDatos(),
+                  );
+                  if (guardo == true) {
+                    _metasAnioCargado = 0;
+                    await _cargarMetas();
+                  }
+                },
+                icon: const Icon(Icons.flag_outlined, size: 18),
+                label: const Text('Configurar metas'),
+              ),
+          ]),
       if (_metasError != null)
         DashCard(
           titulo: 'Metas no disponibles',

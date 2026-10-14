@@ -908,7 +908,11 @@ class BarraMeta extends StatelessWidget {
       c = DashColors.bueno;
       ic = Icons.check_circle;
       txt = 'Meta cumplida';
-    } else if (ritmo! >= 0.95) {
+    } else if (ritmo == null) {
+      c = AppTheme.inkSoft;
+      ic = Icons.schedule;
+      txt = 'Por iniciar';
+    } else if (ritmo >= 0.95) {
       c = DashColors.bueno;
       ic = Icons.trending_up;
       txt = 'En ritmo';

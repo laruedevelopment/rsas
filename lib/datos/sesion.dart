@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'catalogos.dart';
 import 'repositorio_catalogos.dart';
+import 'repositorio_dashboard.dart';
 import 'repositorio_polizas.dart';
 
 /// Usuario activo durante la sesión de la app.
@@ -35,7 +36,8 @@ class Sesion {
     _usuario = u;
     _timerVencimiento?.cancel();
     if (expira != null) {
-      final restante = expira.difference(DateTime.now()) - const Duration(minutes: 1);
+      final restante =
+          expira.difference(DateTime.now()) - const Duration(minutes: 1);
       _timerVencimiento = Timer(
         restante.isNegative ? Duration.zero : restante,
         () {
@@ -59,6 +61,7 @@ class Sesion {
     db.rest.setAuth(anon);
     if (anon != null) db.functions.setAuth(anon);
     RepositorioPolizas.invalidarCache();
+    RepositorioDashboard.invalidarCache();
     RepositorioCatalogos.limpiarCache();
   }
 }

@@ -164,12 +164,12 @@ function textoCatalogo(catalogo: Producto[]): string {
     "el documento.";
 }
 
-/// La IA a veces lee mal un dígito del total en documentos escaneados (0↔5↔8).
-/// Si prima + gastos + IVA (que vienen por separado en el documento) no da el
-/// total leído, y el desfase es chico (menos del 15 %: un dígito mal leído),
-/// se usa la suma y se devuelve un aviso para que el digitador lo revise.
-/// Si el desfase es grande puede haber otros conceptos (extra prima,
-/// descuentos), así que no se toca.
+/// La IA a veces lee mal UN dígito del total en documentos escaneados
+/// (0↔5↔8). Se corrige solo cuando el total leído y prima + gastos + IVA (que
+/// vienen por separado en el documento) tienen el mismo largo y difieren en un
+/// único dígito: eso es una lectura equivocada, no otro concepto. Si difieren
+/// de otra forma (extra prima, descuentos, financiación...) se deja el valor
+/// leído y se avisa para que el digitador lo revise.
 function ajustarTotal(datos: unknown): unknown {
   if (!datos || typeof datos !== "object") return datos;
   const d = datos as Record<string, unknown>;
@@ -180,13 +180,26 @@ function ajustarTotal(datos: unknown): unknown {
   if (prima == null || iva == null || iva <= 0 || total == null) return d;
   const gastos = num(d.gastos_expedicion) ?? 0;
   const suma = Math.round((prima + gastos + iva) * 100) / 100;
-  const dif = Math.abs(suma - total);
-  if (dif <= 1 || dif > suma * 0.15) return d;
-  console.warn(`extraer-poliza: total leído ${total} no cuadra con prima+gastos+IVA ${suma}; se usa la suma`);
-  d.valor_poliza = suma;
-  d.aviso_total =
-    `El total leído en el documento (${total.toLocaleString("es-CO")}) no cuadraba con ` +
-    `prima + gastos + IVA; se usó ${suma.toLocaleString("es-CO")}. Verifíquelo contra el documento.`;
+  if (Math.abs(suma - total) <= 1) return d;
+
+  const dig = (n: number) => Math.round(n * 100).toString();
+  const a = dig(suma);
+  const b = dig(total);
+  const fmt = (n: number) => n.toLocaleString("es-CO");
+  const difUnDigito = a.length === b.length &&
+    [...a].filter((c, i) => c !== b[i]).length === 1;
+
+  if (difUnDigito) {
+    console.warn(`extraer-poliza: total leído ${total} difiere en un dígito de prima+gastos+IVA ${suma}; se usa la suma`);
+    d.valor_poliza = suma;
+    d.aviso_total =
+      `El total leído (${fmt(total)}) difería en un dígito de prima + gastos + IVA; ` +
+      `se usó ${fmt(suma)}. Verifíquelo contra el documento.`;
+  } else {
+    d.aviso_total =
+      `El total leído (${fmt(total)}) no coincide con prima + gastos + IVA (${fmt(suma)}). ` +
+      `Verifique el total contra el documento.`;
+  }
   return d;
 }
 

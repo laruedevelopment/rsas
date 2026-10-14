@@ -341,10 +341,13 @@ class MotorDash {
       case Comparar.ninguno:
         return null;
       case Comparar.anioAnterior:
-        return (
-          DateTime(desde.year - 1, desde.month, desde.day),
-          DateTime(hasta.year - 1, hasta.month, hasta.day),
-        );
+        // 29 de febrero → 28 en un año no bisiesto (no se desborda a marzo).
+        DateTime mismoDia(DateTime d) {
+          final ultimo = DateTime(d.year - 1, d.month + 1, 0).day;
+          return DateTime(d.year - 1, d.month, d.day > ultimo ? ultimo : d.day);
+        }
+
+        return (mismoDia(desde), mismoDia(hasta));
       case Comparar.periodoAnterior:
         final mesesCompletos = desde.day == 1 &&
             hasta.day == DateTime(hasta.year, hasta.month + 1, 0).day;
@@ -415,6 +418,13 @@ class MotorDash {
   }
 
   Resultado calcular(FiltrosDash f) {
+    // Un rango con "desde" después de "hasta" se interpreta al revés en vez
+    // de romper el cálculo.
+    if (f.desde.isAfter(f.hasta)) {
+      f = f.copia()
+        ..desde = f.hasta
+        ..hasta = f.desde;
+    }
     final actual = _agregar(f, f.desde, f.hasta);
     final rc = rangoComparacion(f.desde, f.hasta, f.comparar);
     final comp = rc == null ? null : _agregar(f, rc.$1, rc.$2);

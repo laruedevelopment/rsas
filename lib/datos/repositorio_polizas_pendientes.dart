@@ -60,7 +60,7 @@ class RepositorioPolizasPendientes {
     Map<String, dynamic>? datos,
   }) async {
     final cambios = <String, dynamic>{
-      'fultmod': DateTime.now().toIso8601String(),
+      'fultmod': DateTime.now().toUtc().toIso8601String(),
     };
     if (estado != null) cambios['estado'] = estado;
     if (datos != null) cambios['datos'] = datos;
@@ -71,9 +71,8 @@ class RepositorioPolizasPendientes {
   /// restaurar durante [PolizaPendiente.diasRetencion] días (ver
   /// [restaurar] y [purgarVencidos]).
   Future<void> descartar(int id) async {
-    await _db
-        .from(_tabla)
-        .update({'fdescartado': DateTime.now().toIso8601String()}).eq('id', id);
+    await _db.from(_tabla).update(
+        {'fdescartado': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   Future<void> restaurar(int id) async {
@@ -93,6 +92,7 @@ class RepositorioPolizasPendientes {
   Future<void> purgarVencidos() async {
     final limite = DateTime.now()
         .subtract(const Duration(days: PolizaPendiente.diasRetencion))
+        .toUtc()
         .toIso8601String();
     await _db.from(_tabla).delete().lt('fdescartado', limite);
   }

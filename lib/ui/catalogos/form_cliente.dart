@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../datos/catalogos.dart';
 import '../../datos/repositorio_catalogos.dart';
 import '../../utils/formatters.dart';
+import '../../utils/municipios.dart';
 import '../theme/app_layout.dart';
 import '../widgets/section_card.dart';
 
@@ -20,7 +21,8 @@ class _DocInputFormatter extends TextInputFormatter {
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
     if (!soloNumerico) {
-      final t = newValue.text.toUpperCase().replaceAll(RegExp(r'[^0-9A-Z\-]'), '');
+      final t =
+          newValue.text.toUpperCase().replaceAll(RegExp(r'[^0-9A-Z\-]'), '');
       return newValue.copyWith(
         text: t,
         selection: TextSelection.collapsed(offset: t.length),
@@ -74,9 +76,16 @@ class _FormClienteState extends State<FormCliente> {
   late final TextEditingController contactoCtrl;
   late final TextEditingController cargocontCtrl;
 
-  static const List<String> tiposDocNormalizados = ['CC', 'CE', 'NIT', 'PAS', 'OTRO'];
+  static const List<String> tiposDocNormalizados = [
+    'CC',
+    'CE',
+    'NIT',
+    'PAS',
+    'OTRO'
+  ];
 
-  bool get _docNumerico => tipoDocSel == null || tipoDocSel == 'CC' || tipoDocSel == 'NIT';
+  bool get _docNumerico =>
+      tipoDocSel == null || tipoDocSel == 'CC' || tipoDocSel == 'NIT';
 
   String? tipoDocSel;
   String tipopersSel = 'N';
@@ -99,14 +108,18 @@ class _FormClienteState extends State<FormCliente> {
     idCtrl = TextEditingController(
       text: esEdicion ? widget.cliente!.id.toString() : '',
     );
-    nombreCtrl = TextEditingController(text: widget.cliente?.nombreCliente ?? '');
+    nombreCtrl =
+        TextEditingController(text: widget.cliente?.nombreCliente ?? '');
     docCtrl = TextEditingController(text: Fmt.doc(widget.cliente?.docCliente));
     telCtrl = TextEditingController(text: widget.cliente?.telCliente ?? '');
-    correoCtrl = TextEditingController(text: widget.cliente?.correoCliente ?? '');
+    correoCtrl =
+        TextEditingController(text: widget.cliente?.correoCliente ?? '');
     dirCtrl = TextEditingController(text: widget.cliente?.dirCliente ?? '');
     notasCtrl = TextEditingController(text: widget.cliente?.notasCliente ?? '');
-    contactoCtrl = TextEditingController(text: widget.cliente?.contactoCliente ?? '');
-    cargocontCtrl = TextEditingController(text: widget.cliente?.cargocontCliente ?? '');
+    contactoCtrl =
+        TextEditingController(text: widget.cliente?.contactoCliente ?? '');
+    cargocontCtrl =
+        TextEditingController(text: widget.cliente?.cargocontCliente ?? '');
 
     tipoDocSel = widget.cliente?.tipodocCliente;
     tipopersSel = widget.cliente?.tipopersCliente ?? 'N';
@@ -118,35 +131,6 @@ class _FormClienteState extends State<FormCliente> {
     _cargarMunicipios();
     _cargarAsesores();
     cargandoId = false;
-  }
-
-  /// Minúsculas, sin tildes ni espacios repetidos: "Moniquirá " ≈ "moniquira".
-  static String _norm(String s) {
-    const de = 'áàäâãéèëêíìïîóòöôõúùüûñÁÀÄÂÃÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑ';
-    const a = 'aaaaaeeeeiiiiooooouuuunAAAAAEEEEIIIIOOOOOUUUUN';
-    final b = StringBuffer();
-    for (final r in s.runes) {
-      final c = String.fromCharCode(r);
-      final i = de.indexOf(c);
-      b.write(i >= 0 ? a[i] : c);
-    }
-    return b.toString().toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
-  }
-
-  /// Municipio que corresponde al texto escrito: coincidencia exacta (sin
-  /// tildes/mayúsculas) o, si no hay, el único que empieza o contiene el
-  /// texto. null si no hay ninguno o hay varios posibles.
-  Municipio? _resolverMunicipio(String texto) {
-    final q = _norm(texto);
-    if (q.isEmpty) return null;
-    final exactos = municipios.where((m) => _norm(m.nombreMunic) == q).toList();
-    if (exactos.isNotEmpty) return exactos.first;
-    final empieza =
-        municipios.where((m) => _norm(m.nombreMunic).startsWith(q)).toList();
-    if (empieza.length == 1) return empieza.first;
-    final contiene =
-        municipios.where((m) => _norm(m.nombreMunic).contains(q)).toList();
-    return contiene.length == 1 ? contiene.first : null;
   }
 
   Future<void> _cargarMunicipios() async {
@@ -245,7 +229,8 @@ class _FormClienteState extends State<FormCliente> {
           id: widget.cliente!.id,
           nombreCliente: nombreCtrl.text.trim(),
           tipopersCliente: tipopersSel,
-          tipodocCliente: (tipoDocSel?.trim().isEmpty ?? true) ? null : tipoDocSel!.trim(),
+          tipodocCliente:
+              (tipoDocSel?.trim().isEmpty ?? true) ? null : tipoDocSel!.trim(),
           docCliente: doc,
           telCliente: _limpiarONull(telCtrl.text),
           correoCliente: _limpiarONull(correoCtrl.text),
@@ -268,7 +253,8 @@ class _FormClienteState extends State<FormCliente> {
           id: 0,
           nombreCliente: nombreCtrl.text.trim(),
           tipopersCliente: tipopersSel,
-          tipodocCliente: (tipoDocSel?.trim().isEmpty ?? true) ? null : tipoDocSel!.trim(),
+          tipodocCliente:
+              (tipoDocSel?.trim().isEmpty ?? true) ? null : tipoDocSel!.trim(),
           docCliente: doc,
           telCliente: _limpiarONull(telCtrl.text),
           correoCliente: _limpiarONull(correoCtrl.text),
@@ -399,70 +385,96 @@ class _FormClienteState extends State<FormCliente> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // Tipo persona + Tipo doc + Documento
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 130,
-                        child: DropdownButtonFormField<String>(
-                          value: tipopersSel,
-                          decoration: const InputDecoration(
-                            labelText: 'Tipo persona',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'N', child: Text('Natural')),
-                            DropdownMenuItem(value: 'J', child: Text('Jurídica')),
+                  // Tipo persona + Tipo doc + Documento. En pantallas angostas
+                  // (móvil) el documento pasa a su propia fila.
+                  LayoutBuilder(builder: (context, caja) {
+                    final angosto = caja.maxWidth < 560;
+                    final persona = DropdownButtonFormField<String>(
+                      value: tipopersSel,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Tipo persona',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'N', child: Text('Natural')),
+                        DropdownMenuItem(value: 'J', child: Text('Jurídica')),
+                      ],
+                      onChanged: (v) => setState(() => tipopersSel = v ?? 'N'),
+                    );
+                    final tipoDoc = DropdownButtonFormField<String>(
+                      value: tiposDocNormalizados.contains(tipoDocSel)
+                          ? tipoDocSel
+                          : null,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Tipo documento',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: tiposDocNormalizados
+                          .map(
+                              (t) => DropdownMenuItem(value: t, child: Text(t)))
+                          .toList(),
+                      onChanged: (v) => setState(() => tipoDocSel = v),
+                    );
+                    final documento = TextFormField(
+                      controller: docCtrl,
+                      keyboardType: _docNumerico
+                          ? TextInputType.number
+                          : TextInputType.text,
+                      inputFormatters: [
+                        _DocInputFormatter(soloNumerico: _docNumerico)
+                      ],
+                      decoration: InputDecoration(
+                        labelText: 'Documento',
+                        border: const OutlineInputBorder(),
+                        helperText:
+                            _docNumerico ? 'Los puntos se agregan solos' : null,
+                      ),
+                    );
+                    if (angosto) {
+                      return Column(children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: persona),
+                            const SizedBox(width: 12),
+                            Expanded(child: tipoDoc),
                           ],
-                          onChanged: (v) => setState(() => tipopersSel = v ?? 'N'),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: DropdownButtonFormField<String>(
-                          value: tiposDocNormalizados.contains(tipoDocSel) ? tipoDocSel : null,
-                          decoration: const InputDecoration(
-                            labelText: 'Tipo documento',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: tiposDocNormalizados
-                              .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                              .toList(),
-                          onChanged: (v) => setState(() => tipoDocSel = v),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 3,
-                        child: TextFormField(
-                          controller: docCtrl,
-                          keyboardType: _docNumerico ? TextInputType.number : TextInputType.text,
-                          inputFormatters: [_DocInputFormatter(soloNumerico: _docNumerico)],
-                          decoration: InputDecoration(
-                            labelText: 'Documento',
-                            border: const OutlineInputBorder(),
-                            helperText: _docNumerico ? 'Los puntos se agregan solos' : null,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(height: 12),
+                        documento,
+                      ]);
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(width: 130, child: persona),
+                        const SizedBox(width: 12),
+                        Expanded(flex: 2, child: tipoDoc),
+                        const SizedBox(width: 12),
+                        Expanded(flex: 3, child: documento),
+                      ],
+                    );
+                  }),
                   const SizedBox(height: 12),
                   Autocomplete<Municipio>(
                     initialValue: TextEditingValue(text: municipioInicial),
                     optionsBuilder: (TextEditingValue textEditingValue) {
-                      final query = _norm(textEditingValue.text);
+                      final query = normalizarTexto(textEditingValue.text);
                       if (query.isEmpty) return municipios.take(20);
                       return municipios
-                          .where((m) => _norm(m.nombreMunic).contains(query))
+                          .where((m) =>
+                              normalizarTexto(m.nombreMunic).contains(query))
                           .take(40);
                     },
                     displayStringForOption: (Municipio m) => m.nombreMunic,
-                    onSelected: (Municipio m) => setState(() => municIdSel = m.id),
-                    fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
-                      if (municipioInicial.isNotEmpty && textEditingController.text.isEmpty) {
+                    onSelected: (Municipio m) =>
+                        setState(() => municIdSel = m.id),
+                    fieldViewBuilder: (context, textEditingController,
+                        focusNode, onFieldSubmitted) {
+                      if (municipioInicial.isNotEmpty &&
+                          textEditingController.text.isEmpty) {
                         textEditingController.text = municipioInicial;
                       }
                       return TextFormField(
@@ -477,7 +489,8 @@ class _FormClienteState extends State<FormCliente> {
                                   child: SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   ),
                                 )
                               : const Icon(Icons.search),
@@ -487,14 +500,16 @@ class _FormClienteState extends State<FormCliente> {
                           if (texto.isEmpty) return null;
                           // No eligió de la lista: se intenta resolver por el
                           // texto escrito antes de dar el error.
-                          municIdSel ??= _resolverMunicipio(texto)?.id;
+                          municIdSel ??=
+                              resolverMunicipio(municipios, texto)?.id;
                           if (municIdSel == null) {
-                            return 'Selecciona un municipio de la lista';
+                            return 'Elija el municipio de la lista (puede haber varios con ese nombre)';
                           }
                           return null;
                         },
                         onChanged: (value) {
-                          final nuevo = _resolverMunicipio(value)?.id;
+                          final nuevo =
+                              resolverMunicipio(municipios, value)?.id;
                           if (nuevo != municIdSel) {
                             setState(() => municIdSel = nuevo);
                           }
@@ -504,7 +519,9 @@ class _FormClienteState extends State<FormCliente> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
-                    value: asesores.any((a) => a.id == asesorIdSel) ? asesorIdSel : null,
+                    value: asesores.any((a) => a.id == asesorIdSel)
+                        ? asesorIdSel
+                        : null,
                     decoration: InputDecoration(
                       labelText: 'Asesor asignado',
                       border: const OutlineInputBorder(),
@@ -514,16 +531,19 @@ class _FormClienteState extends State<FormCliente> {
                               child: SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               ),
                             )
                           : null,
                     ),
                     items: [
-                      const DropdownMenuItem(value: null, child: Text('— Sin asesor —')),
+                      const DropdownMenuItem(
+                          value: null, child: Text('— Sin asesor —')),
                       ...asesores.map((a) => DropdownMenuItem(
                             value: a.id,
-                            child: Text(a.nombreAsesor, overflow: TextOverflow.ellipsis),
+                            child: Text(a.nombreAsesor,
+                                overflow: TextOverflow.ellipsis),
                           )),
                     ],
                     onChanged: (v) => setState(() => asesorIdSel = v),
