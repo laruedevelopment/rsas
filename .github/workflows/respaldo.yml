@@ -21,7 +21,7 @@ on:
 
 jobs:
   respaldo:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       FRASE: ${{ secrets.BACKUP_PASSPHRASE }}
