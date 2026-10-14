@@ -95,22 +95,7 @@ const RESPONSE_SCHEMA = {
     fecha_expedicion: { type: "STRING", nullable: true, description: "Fecha de expedición/emisión, YYYY-MM-DD." },
     prima: { type: "NUMBER", nullable: true, description: "Valor de la prima (campo 'Prima' del documento)." },
     valor_asegurado: { type: "NUMBER", nullable: true, description: "Valor asegurado." },
-    valor_poliza: {
-      type: "NUMBER",
-      nullable: true,
-      description:
-        "Valor total de la póliza: el 'TOTAL A PAGAR' (o 'Total póliza').",
-    },
-    gastos_expedicion: {
-      type: "NUMBER",
-      nullable: true,
-      description: "Gastos de expedición (campo 'Gastos Exp.'); 0 si aparece en cero, null si no hay campo.",
-    },
-    iva: {
-      type: "NUMBER",
-      nullable: true,
-      description: "Valor del IVA de la póliza (campo 'IVA'); null si no aparece.",
-    },
+    valor_poliza: { type: "NUMBER", nullable: true, description: "Valor total de la póliza." },
     bien_asegurado: {
       type: "STRING",
       nullable: true,
@@ -132,11 +117,10 @@ const INSTRUCCIONES_BASE =
   "nombre_cliente/doc_cliente y el segundo en asegurado/beneficiario.\n" +
   "- Si el objeto, las observaciones o los comentarios de una garantía mencionan " +
   "'seriedad' (de la oferta), es una póliza de seriedad, no de cumplimiento.\n" +
-  "- Valores: devuelva por separado prima, gastos_expedicion, iva y valor_poliza (total a pagar).\n" +
   "- Si un dato no aparece, devuelva null. Nunca invente valores.";
 
-/// Páginas que se envían a la IA de un PDF largo (override: secret MAX_PAGINAS_POLIZA).
-const MAX_PAGINAS_POLIZA = Number(Deno.env.get("MAX_PAGINAS_POLIZA") ?? "3") || 3;
+/// Páginas que se envían a la IA de un PDF largo (0 = enviar completo, valor por defecto; se activa con el secret MAX_PAGINAS_POLIZA, ej. 3).
+const MAX_PAGINAS_POLIZA = Number(Deno.env.get("MAX_PAGINAS_POLIZA") ?? "0") || 0;
 
 type Producto = { aseguradora: string; ramo: string; producto: string };
 
@@ -234,7 +218,7 @@ Deno.serve(async (req: Request) => {
     // Lo importante de una póliza está en las primeras páginas: se mandan
     // solo esas (menos tokens y menos tiempo). Si no se puede recortar
     // (cifrado, corrupto) se manda completo.
-    const archivo = mimeType === "application/pdf"
+    const archivo = mimeType === "application/pdf" && MAX_PAGINAS_POLIZA > 0
       ? await recortarPdf(fileBase64, MAX_PAGINAS_POLIZA)
       : { base64: fileBase64, paginas: null, enviadas: null };
     const resultado = await llamarGemini({
@@ -242,7 +226,7 @@ Deno.serve(async (req: Request) => {
       instrucciones: INSTRUCCIONES_BASE + textoCatalogo(catalogoProductos ?? []),
       partes: [{ inlineData: { mimeType, data: archivo.base64 } }],
       schema: RESPONSE_SCHEMA,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 4096,
     });
     if (!resultado.ok) return jsonError(resultado.error, resultado.status);
     return jsonOk(ajustarTotal(resultado.datos));
