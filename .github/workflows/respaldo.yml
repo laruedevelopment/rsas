@@ -1,0 +1,72 @@
+name: Respaldo diario de la base
+
+# Copia de seguridad cifrada de la base de PRODUCCIÓN (esquema public: pólizas,
+# clientes, pagos, usuarios...). El plan gratuito de Supabase no trae
+# respaldos. El repositorio es PÚBLICO, por eso el archivo se cifra antes de
+# subirlo como artefacto: sin la frase de cifrado no sirve a nadie.
+#
+# Se activa solo cuando existen los dos secretos (Settings → Secrets and
+# variables → Actions); mientras tanto la ejecución termina sin hacer nada.
+#   SUPABASE_DB_URL     cadena "Session pooler" del proyecto de producción
+#                       (Supabase → Connect → Session pooler; los runners de
+#                       GitHub no tienen IPv6, la conexión directa no sirve).
+#   BACKUP_PASSPHRASE   frase larga para cifrar; guárdela también fuera de
+#                       GitHub (gestor de claves): sin ella no se puede restaurar.
+# Cómo restaurar: docs/RESTAURAR_RESPALDO.md
+
+on:
+  schedule:
+    - cron: '30 8 * * *' # todos los días 03:30 hora de Colombia
+  workflow_dispatch:
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      FRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Verificar secretos
+        id: config
+        run: |
+          if [ -z "$DB_URL" ] || [ -z "$FRASE" ]; then
+            echo "::warning::Faltan los secretos SUPABASE_DB_URL y/o BACKUP_PASSPHRASE: no se hizo respaldo."
+            echo "listo=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Instalar cliente de PostgreSQL 17
+        if: steps.config.outputs.listo == 'true'
+        run: |
+          sudo apt-get install -y curl ca-certificates gnupg >/dev/null
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update >/dev/null
+          sudo apt-get install -y postgresql-client-17 >/dev/null
+
+      - name: Volcar y cifrar
+        if: steps.config.outputs.listo == 'true'
+        run: |
+          set -euo pipefail
+          FECHA=$(date -u +%Y%m%d-%H%M)
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" \
+            --schema=public --no-owner --no-privileges --format=custom \
+            --file=respaldo.dump
+          # Un volcado vacío o truncado no es un respaldo.
+          test "$(stat -c %s respaldo.dump)" -gt 100000
+          /usr/lib/postgresql/17/bin/pg_restore --list respaldo.dump > /dev/null
+          gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
+            --passphrase "$FRASE" --output "respaldo-$FECHA.dump.gpg" respaldo.dump
+          rm respaldo.dump
+          echo "ARCHIVO=respaldo-$FECHA.dump.gpg" >> "$GITHUB_ENV"
+          ls -l respaldo-*.gpg
+
+      - name: Guardar (30 días)
+        if: steps.config.outputs.listo == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: respaldo-supabase
+          path: ${{ env.ARCHIVO }}
+          retention-days: 30
+          if-no-files-found: error
