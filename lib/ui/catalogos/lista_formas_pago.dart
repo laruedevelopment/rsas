@@ -232,8 +232,8 @@ class _ListaFormasPagoState extends State<ListaFormasPago> {
             title: Text(f.nombreFormaPago),
             subtitle: Text(f.estadoFormaPago ? 'Activa' : 'Inactiva'),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: const Icon(Icons.edit, size: 18), onPressed: () => _abrirEditar(f)),
-              IconButton(icon: const Icon(Icons.delete_outline, size: 18), onPressed: () => _eliminar(f)),
+              IconButton(tooltip: 'Editar', icon: const Icon(Icons.edit, size: 18), onPressed: () => _abrirEditar(f)),
+              IconButton(tooltip: 'Eliminar', icon: const Icon(Icons.delete_outline, size: 18), onPressed: () => _eliminar(f)),
             ]),
           ),
         );

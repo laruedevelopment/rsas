@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
+import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -532,6 +533,61 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
           ? 'Póliza predigitada: revise los $completados campo(s) antes de guardar.'
               '${_avisoTotal(pp.datos)}'
           : 'No se pudo aplicar la información predigitada; complétela a mano.');
+    }
+    // Estado "limpio" del formulario: lo que cambie después se avisa al salir.
+    if (mounted) _firmaInicial = _firma();
+  }
+
+  /// Foto del contenido del formulario; sirve para saber si hay cambios sin
+  /// guardar al intentar salir.
+  String? _firmaInicial;
+
+  String _firma() {
+    try {
+      return jsonEncode(_mapaActual());
+    } catch (_) {
+      return '';
+    }
+  }
+
+  bool get _hayCambios => _firmaInicial != null && _firma() != _firmaInicial;
+
+  /// Atrás con cambios sin guardar: pregunta en vez de perder lo digitado
+  /// (o lo que trajo la IA de un PDF).
+  Future<void> _confirmarSalida() async {
+    if (_guardando || _guardandoBorrador) return;
+    if (!_hayCambios) {
+      Navigator.pop(context);
+      return;
+    }
+    final r = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hay cambios sin guardar'),
+        content: Text(esEdicion
+            ? 'Si sale ahora, perderá los cambios hechos en esta póliza.'
+            : 'Si sale ahora, perderá lo digitado. Puede guardarlo como '
+                'borrador y retomarlo después desde Pólizas pendientes.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, 'seguir'),
+              child: const Text('Seguir editando')),
+          if (!esEdicion)
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, 'borrador'),
+                child: const Text('Guardar como borrador')),
+          FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
+              onPressed: () => Navigator.pop(ctx, 'salir'),
+              child: const Text('Salir sin guardar')),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (r == 'salir') {
+      Navigator.pop(context);
+    } else if (r == 'borrador') {
+      await _guardarBorrador();
     }
   }
 
@@ -1907,6 +1963,16 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
       );
     }
 
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmarSalida();
+      },
+      child: _scaffoldFormulario(context),
+    );
+  }
+
+  Widget _scaffoldFormulario(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(esEdicion ? 'Editar póliza' : 'Nueva póliza'),

@@ -209,8 +209,8 @@ class _ListaFormasExpedicionState extends State<ListaFormasExpedicion> {
             leading: CircleAvatar(child: Text(f.id.toString())),
             title: Text(f.nombreFormaexp),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: const Icon(Icons.edit, size: 18), onPressed: () => _abrirEditar(f)),
-              IconButton(icon: const Icon(Icons.delete_outline, size: 18), onPressed: () => _eliminar(f)),
+              IconButton(tooltip: 'Editar', icon: const Icon(Icons.edit, size: 18), onPressed: () => _abrirEditar(f)),
+              IconButton(tooltip: 'Eliminar', icon: const Icon(Icons.delete_outline, size: 18), onPressed: () => _eliminar(f)),
             ]),
           ),
         );
