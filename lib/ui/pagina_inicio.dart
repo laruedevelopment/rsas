@@ -230,7 +230,7 @@ class _PaginaInicioState extends State<PaginaInicio> {
                   icon: Icons.delete_sweep_outlined,
                   iconColor: AppTheme.danger,
                   title: 'Eliminaciones por autorizar',
-                  subtitle: 'Pólizas que alguien marcó para eliminar: autorizar o rechazar',
+                  subtitle: 'Pólizas que pidieron eliminar: decida si se borran o vuelven',
                   contador: _eliminacionesPendientes,
                   onTap: () async {
                     await Navigator.push(

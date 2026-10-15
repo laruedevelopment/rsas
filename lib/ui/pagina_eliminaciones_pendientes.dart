@@ -5,6 +5,7 @@ import '../datos/repositorio_eliminacion.dart';
 import '../datos/sesion.dart';
 import '../utils/formatters.dart';
 import '../utils/mensajes_error.dart';
+import '../utils/plurales.dart';
 import 'theme/app_layout.dart';
 import 'theme/app_theme.dart';
 
@@ -81,7 +82,10 @@ class _PaginaEliminacionesPendientesState
     final nota = await showDialog<String>(
       context: context,
       builder: (_) =>
-          _DialogoResolver(aprobar: aprobar, cantidad: elegidas.length),
+          _DialogoResolver(
+        aprobar: aprobar,
+        elegidas: elegidas,
+      ),
     );
     if (nota == null || !mounted) return; // canceló ('' = sin nota)
 
@@ -93,19 +97,28 @@ class _PaginaEliminacionesPendientesState
         nota: nota.isEmpty ? null : nota,
       );
       if (!mounted) return;
-      _sel.clear();
+      // Las que no se pudieron procesar quedan seleccionadas para reintentar.
+      _sel
+        ..clear()
+        ..addAll(r.omitidas.map((o) => o.id));
       await _cargar();
       if (!mounted) return;
-      final verbo = aprobar ? 'eliminadas definitivamente' : 'restauradas';
+      final verbo = aprobar
+          ? palabraPlural(r.hechas, 'eliminada', 'eliminadas')
+          : palabraPlural(r.hechas, 'volvió a las listas', 'volvieron a las listas');
       if (r.omitidas.isEmpty) {
-        _snack('${r.hechas} póliza(s) $verbo.');
+        _snack(aprobar
+            ? 'Listo: ${plural(r.hechas, 'póliza eliminada', 'pólizas eliminadas')} para siempre.'
+            : 'Listo: ${plural(r.hechas, 'póliza', 'pólizas')} $verbo.');
       } else {
         final porSolicitud = {for (final s in elegidas) s.id: s};
         await showDialog<void>(
           context: context,
           builder: (ctx) => AlertDialog(
             title: Text(
-                '${r.hechas} $verbo; ${r.omitidas.length} no se pudieron procesar'),
+                aprobar
+                    ? 'Se eliminaron ${r.hechas}. No se pudieron eliminar ${r.omitidas.length}'
+                    : 'Se restauraron ${r.hechas}. No se pudieron restaurar ${r.omitidas.length}'),
             content: SizedBox(
               width: 480,
               child: SingleChildScrollView(
@@ -183,7 +196,7 @@ class _PaginaEliminacionesPendientesState
                   ButtonSegment(
                       value: true,
                       icon: const Icon(Icons.history, size: 18),
-                      label: Text('Historial (${_historial.length})')),
+                      label: Text('Historial (${_historial.length}${_historial.length >= 100 ? '+' : ''})')),
                 ],
                 selected: {_verHistorial},
                 onSelectionChanged: (s) =>
@@ -270,8 +283,8 @@ class _PaginaEliminacionesPendientesState
                       }),
             ),
             Text(_sel.isEmpty
-                ? 'Seleccione para autorizar o rechazar varias a la vez'
-                : '${_sel.length} seleccionada(s)'),
+                ? 'Marque las pólizas, o un lote completo, para decidir'
+                : plural(_sel.length, 'seleccionada', 'seleccionadas')),
             FilledButton.icon(
               style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
               onPressed: _sel.isEmpty || _trabajando
@@ -332,7 +345,7 @@ class _PaginaEliminacionesPendientesState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${items.length} póliza(s) · pedido por ${primera.solicitadoPor}'
+                      '${plural(items.length, 'póliza', 'pólizas')}${items.where((s) => s.nPagos > 0).isNotEmpty ? ' (${items.where((s) => s.nPagos > 0).length} con pagos)' : ''} · pedido por ${primera.solicitadoPor}'
                       '${primera.solicitadoEn != null ? ' el ${_fecha.format(primera.solicitadoEn!)}' : ''}',
                       style: const TextStyle(
                           fontWeight: FontWeight.w700, fontSize: 13),
@@ -360,12 +373,15 @@ class _PaginaEliminacionesPendientesState
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 6, 16, 6),
         child: Row(children: [
-          Checkbox(
-            value: marcada,
-            onChanged: _trabajando
-                ? null
-                : (v) => setState(
-                    () => v == true ? _sel.add(s.id) : _sel.remove(s.id)),
+          Semantics(
+            label: 'Seleccionar la póliza ${s.nroPoliza ?? s.polizaId}',
+            child: Checkbox(
+              value: marcada,
+              onChanged: _trabajando
+                  ? null
+                  : (v) => setState(
+                      () => v == true ? _sel.add(s.id) : _sel.remove(s.id)),
+            ),
           ),
           Expanded(
             child:
@@ -384,22 +400,28 @@ class _PaginaEliminacionesPendientesState
                 ].join(' · '),
                 style: const TextStyle(fontSize: 12, color: AppTheme.inkSoft),
               ),
+              if (conPagos)
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Row(children: [
+                    const Icon(Icons.payments_outlined,
+                        size: 14, color: AppTheme.onWarningContainer),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Tiene ${plural(s.nPagos, 'pago', 'pagos')}: para poder borrarla hay que '
+                        'moverlos a la póliza correcta. Mientras tanto puede rechazarla para restaurarla.',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            height: 1.3,
+                            color: AppTheme.onWarningContainer,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ]),
+                ),
             ]),
           ),
-          if (conPagos)
-            Tooltip(
-              message:
-                  'Tiene ${s.nPagos} pago(s) registrados: no se podrá borrar '
-                  'hasta moverlos o eliminarlos.',
-              child: Chip(
-                avatar: const Icon(Icons.payments_outlined,
-                    size: 14, color: AppTheme.warning),
-                label: Text('${s.nPagos} pago(s)',
-                    style: const TextStyle(fontSize: 11.5)),
-                backgroundColor: AppTheme.warningContainer,
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
         ]),
       ),
     );
@@ -438,7 +460,7 @@ class _PaginaEliminacionesPendientesState
                       style: const TextStyle(
                           fontWeight: FontWeight.w700, fontSize: 13)),
                 ),
-                Text(h.aprobada ? 'ELIMINADA' : 'RECHAZADA (restaurada)',
+                Text(h.aprobada ? 'Eliminada' : 'Rechazada, volvió a las listas',
                     style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
@@ -470,8 +492,8 @@ class _PaginaEliminacionesPendientesState
 /// nota ('' si no escribió ninguna) o null si cancela.
 class _DialogoResolver extends StatefulWidget {
   final bool aprobar;
-  final int cantidad;
-  const _DialogoResolver({required this.aprobar, required this.cantidad});
+  final List<SolicitudEliminacion> elegidas;
+  const _DialogoResolver({required this.aprobar, required this.elegidas});
 
   @override
   State<_DialogoResolver> createState() => _DialogoResolverState();
@@ -491,16 +513,21 @@ class _DialogoResolverState extends State<_DialogoResolver> {
   bool get _valido =>
       !widget.aprobar || _confirmar.text.trim().toUpperCase() == 'ELIMINAR';
 
+  void _aceptar() {
+    if (_valido) Navigator.pop(context, _nota.text.trim());
+  }
+
   @override
   Widget build(BuildContext context) {
-    final n = widget.cantidad;
+    final n = widget.elegidas.length;
+    final conPagos = widget.elegidas.where((s) => s.nPagos > 0).length;
     final aprobar = widget.aprobar;
     return AlertDialog(
       title: Text(aprobar
-          ? 'Autorizar la eliminación de $n póliza(s)'
-          : 'Rechazar y restaurar $n póliza(s)'),
+          ? 'Autorizar la eliminación de ${plural(n, 'póliza', 'pólizas')}'
+          : 'Rechazar y restaurar ${plural(n, 'póliza', 'pólizas')}'),
       content: SizedBox(
-        width: 480,
+        width: 520,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -508,26 +535,73 @@ class _DialogoResolverState extends State<_DialogoResolver> {
             children: [
               Text(
                 aprobar
-                    ? 'Se borrarán DEFINITIVAMENTE de la base de datos. Queda una '
-                        'copia de sus datos en el registro de eliminaciones. Las que '
-                        'tengan pagos registrados no se borran.'
-                    : 'Las pólizas vuelven a aparecer en las listas, las estadísticas '
-                        'y los dashboards, como estaban.',
-                style: const TextStyle(height: 1.35),
+                    ? 'Se borrarán para siempre. Guardamos una copia de sus datos en el '
+                        'registro de eliminaciones.'
+                    : 'Volverán a aparecer en las listas, las estadísticas y los dashboards, '
+                        'como estaban.',
+                style: const TextStyle(height: 1.35, fontSize: 14),
+              ),
+              if (aprobar && conPagos > 0) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warningContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$conPagos de $n ${palabraPlural(conPagos, 'tiene pagos y no se borrará', 'tienen pagos y no se borrarán')}: '
+                    'seguirán marcadas hasta que se muevan los pagos, o puede rechazarlas para restaurarlas.',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.35,
+                        color: AppTheme.onWarningContainer),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 130),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppTheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    children: [
+                      for (final s in widget.elegidas)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            'Cód. ${s.polizaId} · ${s.nroPoliza ?? 'sin número'}'
+                            '${(s.cliente ?? '').isNotEmpty ? ' · ${s.cliente}' : ''}',
+                            style: const TextStyle(fontSize: 12.5),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: _nota,
+                autofocus: !aprobar,
                 maxLength: 300,
                 minLines: 1,
                 maxLines: 3,
+                onSubmitted: (_) => aprobar ? null : _aceptar(),
                 decoration: const InputDecoration(labelText: 'Nota (opcional)'),
               ),
               if (aprobar) ...[
                 const SizedBox(height: 6),
                 TextField(
                   controller: _confirmar,
+                  autofocus: true,
                   onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) => _aceptar(),
                   decoration: const InputDecoration(
                       labelText: 'Para confirmar, escriba ELIMINAR'),
                 ),
@@ -544,10 +618,8 @@ class _DialogoResolverState extends State<_DialogoResolver> {
           style: aprobar
               ? FilledButton.styleFrom(backgroundColor: AppTheme.danger)
               : null,
-          onPressed:
-              _valido ? () => Navigator.pop(context, _nota.text.trim()) : null,
-          child: Text(
-              aprobar ? 'Eliminar definitivamente' : 'Rechazar y restaurar'),
+          onPressed: _valido ? _aceptar : null,
+          child: Text(aprobar ? 'Eliminar para siempre' : 'Rechazar y restaurar'),
         ),
       ],
     );

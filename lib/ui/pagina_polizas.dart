@@ -10,6 +10,7 @@ import 'pagina_polizas_duplicadas.dart';
 import 'pagina_polizas_pendientes.dart';
 import 'pagina_eliminaciones_pendientes.dart';
 import 'dialogos/eliminar_polizas.dart';
+import '../utils/plurales.dart';
 import '../datos/poliza.dart';
 import '../datos/repositorio_polizas.dart';
 import '../datos/repositorio_polizas_pendientes.dart';
@@ -230,17 +231,28 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
         }
       });
 
-  /// Elimina (marca) [lista] o, si es null, las seleccionadas. Una sola
-  /// confirmación para todas.
+  /// Las seleccionadas que se ven con la búsqueda y los filtros de ahora: el
+  /// diálogo y el contador solo usan estas, nunca pólizas que quedaron ocultas.
+  List<Poliza> get _elegidasVisibles =>
+      _polizasFiltradas.where((p) => _sel.contains(p.id)).toList();
+
+  /// Elimina (marca) [lista] o, si es null, las seleccionadas que se ven. Una
+  /// sola confirmación para todas.
   Future<void> _eliminar([List<Poliza>? lista]) async {
-    final elegidas = lista ?? polizas.where((p) => _sel.contains(p.id)).toList();
+    final elegidas = lista ?? _elegidasVisibles;
     if (elegidas.isEmpty) return;
     final cambio = await mostrarDialogoEliminarPolizas(context, elegidas);
     if (!mounted) return;
     if (cambio) {
       setState(() {
-        _modoSeleccion = false;
-        _sel.clear();
+        if (lista == null) {
+          // Eliminación del grupo seleccionado: se sale del modo selección.
+          _modoSeleccion = false;
+          _sel.clear();
+        } else {
+          // Papelera de una fila: no se pierde el resto de la selección.
+          _sel.removeAll(elegidas.map((p) => p.id));
+        }
       });
       // La caché ya no tiene las marcadas: recargar es instantáneo.
       _datosCompletos ? _cargarTodo() : _cargar();
@@ -605,9 +617,8 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
                       ),
                       if (!_modoSeleccion)
                         IconButton(
-                          tooltip: 'Eliminar (pide autorización)',
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.delete_outline, size: 20),
+                          tooltip: 'Eliminar (la autoriza un administrador)',
+                          icon: const Icon(Icons.delete_outline, size: 22),
                           color: AppTheme.danger,
                           onPressed: () => _eliminar([p]),
                         ),
@@ -801,11 +812,14 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
             width: _wSel,
             child: Checkbox(
               tristate: true,
-              value: _sel.isEmpty
+              value: _elegidasVisibles.isEmpty
                   ? false
-                  : (_sel.length >= _polizasFiltradas.length.clamp(0, _maxSeleccion) ? true : null),
+                  : (_elegidasVisibles.length >=
+                          _polizasFiltradas.length.clamp(0, _maxSeleccion)
+                      ? true
+                      : null),
               onChanged: (_) {
-                if (_sel.isEmpty) {
+                if (_elegidasVisibles.isEmpty) {
                   _seleccionarVisibles(_polizasFiltradas);
                 } else {
                   setState(_sel.clear);
@@ -847,7 +861,10 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
           if (_modoSeleccion)
             SizedBox(
               width: _wSel,
-              child: Checkbox(value: marcada, onChanged: (_) => _toggleSel(p.id)),
+              child: Semantics(
+                label: 'Seleccionar la póliza ${p.nroPoliza ?? p.id}',
+                child: Checkbox(value: marcada, onChanged: (_) => _toggleSel(p.id)),
+              ),
             ),
           SizedBox(width: _wCod, child: Text(p.id.toString(), style: const TextStyle(fontSize: 12), textAlign: TextAlign.right)),
           const SizedBox(width: 8),
@@ -974,7 +991,7 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
                 onPressed: () => _abrirEditar(p),
               ),
               IconButton(
-                tooltip: 'Eliminar (pide autorización)',
+                tooltip: 'Eliminar (la autoriza un administrador)',
                 icon: const Icon(Icons.delete_outline, size: 18),
                 color: AppTheme.danger,
                 onPressed: () => _eliminar([p]),
@@ -1029,9 +1046,14 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
 
   @override
   Widget build(BuildContext context) {
+    // En pantallas angostas (móvil) las acciones secundarias van a un menú.
+    final angosto = MediaQuery.sizeOf(context).width < 640;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyN, alt: true): _nuevaPoliza,
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (_modoSeleccion) _salirSeleccion();
+        },
       },
       child: Focus(
         autofocus: true,
@@ -1044,15 +1066,23 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
             icon: const Icon(Icons.add),
             onPressed: _nuevaPoliza,
           ),
-          IconButton(
-            tooltip: _modoSeleccion
-                ? 'Salir de la selección'
-                : 'Seleccionar varias pólizas para eliminar',
-            icon: Icon(_modoSeleccion ? Icons.close : Icons.checklist_rtl),
-            onPressed: () => _modoSeleccion
-                ? _salirSeleccion()
-                : setState(() => _modoSeleccion = true),
-          ),
+          angosto
+              ? IconButton(
+                  tooltip: _modoSeleccion
+                      ? 'Salir de la selección'
+                      : 'Seleccionar varias pólizas para eliminar',
+                  icon: Icon(_modoSeleccion ? Icons.close : Icons.checklist_rtl),
+                  onPressed: () => _modoSeleccion
+                      ? _salirSeleccion()
+                      : setState(() => _modoSeleccion = true),
+                )
+              : TextButton.icon(
+                  onPressed: () => _modoSeleccion
+                      ? _salirSeleccion()
+                      : setState(() => _modoSeleccion = true),
+                  icon: Icon(_modoSeleccion ? Icons.close : Icons.checklist_rtl, size: 18),
+                  label: Text(_modoSeleccion ? 'Salir de la selección' : 'Eliminar varias'),
+                ),
           if (Sesion.esAdmin)
             IconButton(
               tooltip: 'Eliminaciones por autorizar',
@@ -1072,11 +1102,13 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
                 _datosCompletos ? _cargarTodo() : _cargar();
               },
             ),
+          if (!angosto)
           IconButton(
             tooltip: 'Recargar lista',
             icon: const Icon(Icons.refresh),
             onPressed: cargando ? null : () => _datosCompletos ? _cargarTodo(forzar: true) : _cargar(),
           ),
+          if (!angosto)
           IconButton(
             icon: const Icon(Icons.content_copy_outlined),
             tooltip: 'Pólizas con número repetido',
@@ -1101,6 +1133,7 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
                     'Cargando ${_servicioCarga.procesados}/${_servicioCarga.items.length}'),
               ),
             ),
+          if (!angosto)
           IconButton(
             icon: const Icon(Icons.upload_file_outlined),
             tooltip: 'Carga masiva de pólizas (PDF/imagen con IA)',
@@ -1131,6 +1164,7 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
               _datosCompletos ? _cargarTodo() : _cargar();
             },
           ),
+          if (!angosto)
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Catálogos',
@@ -1139,6 +1173,34 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
               MaterialPageRoute(builder: (_) => const PaginaCatalogos()),
             ),
           ),
+          if (angosto)
+            PopupMenuButton<String>(
+              tooltip: 'Más opciones',
+              onSelected: (v) async {
+                switch (v) {
+                  case 'recargar':
+                    if (!cargando) {
+                      _datosCompletos ? _cargarTodo(forzar: true) : _cargar();
+                    }
+                  case 'duplicadas':
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const PaginaPolizasDuplicadas()));
+                  case 'masiva':
+                    await Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const PaginaCargaMasivaPolizas()));
+                    _cargarPendientesCount();
+                  case 'catalogos':
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const PaginaCatalogos()));
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'recargar', child: Text('Recargar lista')),
+                PopupMenuItem(value: 'duplicadas', child: Text('Pólizas con número repetido')),
+                PopupMenuItem(value: 'masiva', child: Text('Carga masiva (PDF/imagen con IA)')),
+                PopupMenuItem(value: 'catalogos', child: Text('Catálogos')),
+              ],
+            ),
         ],
       ),
       body: Column(
@@ -1237,14 +1299,19 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
-                    _sel.isEmpty
+                    _elegidasVisibles.isEmpty
                         ? 'Toque las pólizas que quiere eliminar'
-                        : '${_sel.length} seleccionada(s)',
+                        : '${plural(_elegidasVisibles.length, 'póliza seleccionada', 'pólizas seleccionadas')}'
+                            '${_sel.length > _elegidasVisibles.length ? ' (${_sel.length - _elegidasVisibles.length} más quedaron ocultas por el filtro y no se incluyen)' : ''}',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   TextButton(
-                    onPressed: () => _seleccionarVisibles(_polizasFiltradas),
-                    child: Text('Seleccionar las ${_polizasFiltradas.length.clamp(0, _maxSeleccion)} visibles'),
+                    onPressed: _polizasFiltradas.isEmpty
+                        ? null
+                        : () => _seleccionarVisibles(_polizasFiltradas),
+                    child: Text(_polizasFiltradas.length > _maxSeleccion
+                        ? 'Seleccionar las primeras $_maxSeleccion de ${_polizasFiltradas.length}'
+                        : 'Seleccionar todas las visibles (${_polizasFiltradas.length})'),
                   ),
                   if (_sel.isNotEmpty)
                     TextButton(
@@ -1252,9 +1319,9 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
                         child: const Text('Quitar selección')),
                   FilledButton.icon(
                     style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
-                    onPressed: _sel.isEmpty ? null : () => _eliminar(),
+                    onPressed: _elegidasVisibles.isEmpty ? null : () => _eliminar(),
                     icon: const Icon(Icons.delete_outline, size: 18),
-                    label: Text('Eliminar (${_sel.length})'),
+                    label: Text('Eliminar (${_elegidasVisibles.length})'),
                   ),
                   TextButton(onPressed: _salirSeleccion, child: const Text('Cancelar')),
                 ],

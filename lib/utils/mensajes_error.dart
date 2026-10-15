@@ -28,7 +28,8 @@ String _causa(Object e) {
     if (code == 'P0001' && e.message.trim().isNotEmpty) return e.message.trim();
     final msg = '${e.message} ${e.details ?? ''}'.toLowerCase();
     if (code == '23503' || msg.contains('foreign key')) {
-      return 'Está en uso por otros registros (por ejemplo pólizas), así que no se puede eliminar o cambiar.';
+      return 'Está en uso por otros registros (por ejemplo pólizas, incluso pólizas marcadas para '
+          'eliminar que aún esperan autorización), así que no se puede eliminar o cambiar.';
     }
     if (code == '23505' || msg.contains('duplicate key')) {
       return 'Ya existe un registro con esos datos.';

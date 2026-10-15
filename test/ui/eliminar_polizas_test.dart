@@ -44,7 +44,7 @@ Future<void> abrir(
 
 Finder get botonMarcar => find
     .ancestor(
-      of: find.textContaining('para eliminar'),
+      of: find.textContaining('a autorización'),
       matching: find.byWidgetPredicate((w) => w is FilledButton),
     )
     .first;
@@ -53,6 +53,7 @@ bool habilitado(WidgetTester t) =>
     t.widget<FilledButton>(botonMarcar).onPressed != null;
 
 void main() {
+  pruebasExtra();
   group('Diálogo de eliminar pólizas', () {
     testWidgets(
         'el botón empieza deshabilitado y exige motivo y la palabra ELIMINAR',
@@ -119,7 +120,7 @@ void main() {
       expect(motivo, 'Repetidas por error',
           reason: 'el motivo se envía sin espacios sobrantes');
       expect(cambio, isTrue);
-      expect(find.textContaining('3 pólizas marcadas'), findsOneWidget);
+      expect(find.textContaining('Quedaron marcadas 3 pólizas'), findsOneWidget);
     });
 
     testWidgets('si algunas no se pueden marcar, se explica por qué',
@@ -141,7 +142,7 @@ void main() {
       await t.tap(botonMarcar);
       await t.pumpAndSettle();
 
-      expect(find.textContaining('Se marcaron 1; 1 no se pudieron marcar'),
+      expect(find.textContaining('Se enviaron 1; 1 no se pudieron enviar'),
           findsOneWidget);
       expect(find.textContaining('CON-PAGOS'), findsOneWidget);
       expect(find.textContaining('Tiene pagos registrados'), findsOneWidget);
@@ -250,6 +251,25 @@ void main() {
             code: 'P0001')),
         'Solo un Administrador puede ver las eliminaciones por autorizar.',
       );
+    });
+  });
+}
+
+// Pruebas del criterio de motivo y de los plurales
+void pruebasExtra() {
+  group('Motivo y plurales', () {
+    testWidgets('un motivo hecho solo de espacios o saltos de línea no sirve', (t) async {
+      await abrir(t, [pol(1)], enviar: (_, __) async => const ResultadoEliminacion(1, []));
+      await t.enterText(find.widgetWithText(TextField, 'Para confirmar, escriba ELIMINAR'), 'ELIMINAR');
+      await t.enterText(find.widgetWithText(TextField, 'Motivo (obligatorio)'), '      ');
+      await t.pump();
+      expect(habilitado(t), isFalse);
+      await t.enterText(find.widgetWithText(TextField, 'Motivo (obligatorio)'), 'ab c d');
+      await t.pump();
+      expect(habilitado(t), isFalse, reason: 'solo 4 caracteres que no son espacios');
+      await t.enterText(find.widgetWithText(TextField, 'Motivo (obligatorio)'), 'ab c de');
+      await t.pump();
+      expect(habilitado(t), isTrue);
     });
   });
 }

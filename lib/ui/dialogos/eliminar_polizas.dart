@@ -5,6 +5,7 @@ import '../../datos/repositorio_eliminacion.dart';
 import '../../datos/sesion.dart';
 import '../../utils/formatters.dart';
 import '../../utils/mensajes_error.dart';
+import '../../utils/plurales.dart';
 import '../theme/app_theme.dart';
 
 /// Función que marca las pólizas (inyectable para pruebas).
@@ -35,8 +36,8 @@ Future<bool> mostrarDialogoEliminarPolizas(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(r.hechas > 0
-            ? 'Se marcaron ${r.hechas}; ${r.omitidas.length} no se pudieron marcar'
-            : 'No se pudo marcar ninguna'),
+            ? 'Se enviaron ${r.hechas}; ${r.omitidas.length} no se pudieron enviar'
+            : 'No se pudo enviar ${r.omitidas.length == 1 ? 'la póliza' : 'ninguna'}'),
         content: SizedBox(
           width: 480,
           child: SingleChildScrollView(
@@ -67,11 +68,15 @@ Future<bool> mostrarDialogoEliminarPolizas(
       ),
     );
   } else if (context.mounted) {
+    final unica = r.hechas == 1 ? porId.values.first : null;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 8),
       content: Text(
-        r.hechas == 1
-            ? 'Póliza marcada para eliminar. Un administrador debe autorizarla.'
-            : '${r.hechas} pólizas marcadas para eliminar. Un administrador debe autorizarlas.',
+        unica != null
+            ? 'Quedó marcada la póliza ${unica.nroPoliza ?? 'sin número'} (cód. ${unica.id}). '
+                'Desaparece de las listas hasta que un administrador la autorice o la rechace.'
+            : 'Quedaron marcadas ${r.hechas} pólizas. Desaparecen de las listas '
+                'hasta que un administrador las autorice o las rechace.',
       ),
     ));
   }
@@ -102,9 +107,12 @@ class _DialogoEliminarPolizasState extends State<DialogoEliminarPolizas> {
     super.dispose();
   }
 
+  /// Motivo con al menos 5 caracteres que no sean espacios (igual que la base).
+  bool get _motivoValido =>
+      _motivo.text.replaceAll(RegExp(r'[\s ]'), '').length >= _minMotivo;
+
   bool get _valido =>
-      _motivo.text.trim().length >= _minMotivo &&
-      _confirmar.text.trim().toUpperCase() == 'ELIMINAR';
+      _motivoValido && _confirmar.text.trim().toUpperCase() == 'ELIMINAR';
 
   Future<void> _enviar() async {
     if (!_valido || _enviando) return;
@@ -121,7 +129,7 @@ class _DialogoEliminarPolizasState extends State<DialogoEliminarPolizas> {
       if (!mounted) return;
       setState(() {
         _enviando = false;
-        _error = mensajeAmigable(e, accion: 'No se pudo marcar para eliminar');
+        _error = mensajeAmigable(e, accion: 'No se pudo enviar a autorización');
       });
     }
   }
@@ -150,15 +158,39 @@ class _DialogoEliminarPolizasState extends State<DialogoEliminarPolizas> {
                   color: AppTheme.warningContainer,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  'No se borran todavía. Quedan marcadas, desaparecen de las '
-                  'listas, las estadísticas y los dashboards, y un administrador '
-                  '${Sesion.esAdmin ? '(usted, en "Eliminaciones por autorizar") ' : ''}'
-                  'debe autorizar la eliminación o rechazarla (y entonces vuelven).',
-                  style: const TextStyle(
-                      fontSize: 12.5,
-                      height: 1.35,
-                      color: AppTheme.onWarningContainer),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      varias
+                          ? 'Todavía no se borran. Quedan pendientes de que un administrador las autorice.'
+                          : 'Todavía no se borra. Queda pendiente de que un administrador la autorice.',
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.onWarningContainer),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Mientras tanto no la verá en listas ni estadísticas. Si el administrador '
+                      'la rechaza, vuelve a aparecer. '
+                      '${Sesion.esAdmin ? 'Como usted es administrador, la autoriza desde "Eliminaciones por autorizar".' : ''}',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.35,
+                          color: AppTheme.onWarningContainer),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Una póliza con pagos registrados no se puede eliminar: primero hay que '
+                      'mover los pagos a la póliza correcta. Si solo quiere que deje de contar, '
+                      'anúlela (se puede revertir).',
+                      style: TextStyle(
+                          fontSize: 13,
+                          height: 1.35,
+                          color: AppTheme.onWarningContainer),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
@@ -188,8 +220,7 @@ class _DialogoEliminarPolizasState extends State<DialogoEliminarPolizas> {
                             Text(
                                 'Cód. ${p.id} · ${p.nroPoliza ?? 'sin número'}',
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12.5)),
+                                    fontWeight: FontWeight.w700, fontSize: 13)),
                             Text(
                               [
                                 if ((p.nombreCliente ?? '').isNotEmpty)
@@ -199,7 +230,7 @@ class _DialogoEliminarPolizasState extends State<DialogoEliminarPolizas> {
                                 'Prima \$ ${Fmt.money(p.primaPoliza)}',
                               ].join(' · '),
                               style: const TextStyle(
-                                  fontSize: 12, color: AppTheme.inkSoft),
+                                  fontSize: 12.5, color: AppTheme.inkSoft),
                             ),
                           ],
                         ),
@@ -212,13 +243,16 @@ class _DialogoEliminarPolizasState extends State<DialogoEliminarPolizas> {
               TextField(
                 controller: _motivo,
                 enabled: !_enviando,
+                autofocus: true,
                 maxLength: 300,
                 minLines: 2,
                 maxLines: 3,
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Motivo (obligatorio)',
-                  hintText: 'Ej.: duplicada de la póliza cód. 1234',
+                  hintText: 'Ej.: está repetida, es la misma del cód. 1234',
+                  helperText:
+                      _motivoValido ? null : 'Escriba al menos 5 letras.',
                 ),
               ),
               const SizedBox(height: 6),
@@ -254,10 +288,13 @@ class _DialogoEliminarPolizasState extends State<DialogoEliminarPolizas> {
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.delete_outline, size: 18),
-          label:
-              Text(varias ? 'Marcar $n para eliminar' : 'Marcar para eliminar'),
+                      strokeWidth: 2,
+                      color: Colors.white,
+                      semanticsLabel: 'Enviando'))
+              : const Icon(Icons.send_outlined, size: 18),
+          label: Text(varias
+              ? 'Enviar ${plural(n, 'póliza', 'pólizas')} a autorización'
+              : 'Enviar a autorización'),
         ),
       ],
     );

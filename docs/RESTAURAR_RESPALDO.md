@@ -50,3 +50,26 @@ copiar de ahí lo que falte.
 Un respaldo que nunca se restauró no es una garantía. Una vez al mes: descargue
 el último, restáurelo en el proyecto de pruebas y compare el conteo de pólizas
 (`select count(*) from polizas;`) con producción.
+
+## Si restaura solo algunas tablas
+El respaldo trae también `polizas_eliminacion` (solicitudes de eliminar pólizas
+y la copia de las ya eliminadas) y la columna `polizas.eliminada_en`. Si
+restaura **solo** `polizas`, restaure `polizas_eliminacion` **junto con ella**:
+de lo contrario pueden quedar pólizas marcadas (ocultas) sin solicitud en la
+bandeja. Después de cualquier restauración corra esta consulta de control; debe
+devolver 0:
+
+```sql
+select count(*) from polizas
+ where eliminada_en is not null
+   and id not in (select poliza_id from polizas_eliminacion where estado = 'pendiente');
+```
+Y confirme que siguen las protecciones (debe dar `3` políticas y `0` de borrado):
+```sql
+select count(*) as politicas, count(*) filter (where cmd = 'DELETE') as borrado
+  from pg_policies where tablename = 'polizas';
+```
+Un respaldo viejo puede "resucitar" pólizas que ya se habían eliminado de
+verdad; las que figuren como `aprobada` en `polizas_eliminacion` conviene
+volver a eliminarlas.
+

@@ -136,17 +136,25 @@ await como(DIGI, async (q) => {
   const r = await q(`select count(*)::int n from polizas where nro_poliza = 'NUEVA'`);
   ok('la nueva se ve', r.rows[0].n === 1);
 });
-await como(ADMIN, async (q) => {
-  const d = await q(`delete from polizas where id = 8`);
-  ok('borrar (API) una póliza normal sigue funcionando para el administrador', d.rowCount === 1);
+for (const [nombre, uid] of [['administrador', ADMIN], ['digitador', DIGI], ['rol S', SUPER]]) {
+  await como(uid, async (q) => {
+    const e = await falla(() => q(`delete from polizas where id = 8`));
+    ok(`${nombre} NO puede borrar una póliza directo por la API (sin autorización)`, e && /permission denied/i.test(e.message), e && e.message);
+  });
+}
+await como(DIGI, async (q) => {
+  const e = await falla(() => q(`delete from polizas where id > 0`));
+  ok('borrado masivo por la API también negado', e && /permission denied/i.test(e.message), e && e.message);
 });
+const todas = await c.query('select count(*)::int n from polizas');
+ok('ninguna póliza se borró por esos intentos', todas.rows[0].n >= 8);
 
 console.log('3) No se puede tocar la marca ni las marcadas directamente por la API');
 await como(DIGI, async (q) => {
   const u = await q(`update polizas set nro_poliza = 'HACK' where id = 1`);
   ok('update sobre una marcada afecta 0 filas', u.rowCount === 0);
-  const d = await q(`delete from polizas where id = 1`);
-  ok('delete sobre una marcada afecta 0 filas', d.rowCount === 0);
+  const d = await falla(() => q(`delete from polizas where id = 1`));
+  ok('delete sobre una marcada es negado', d && /permission denied/i.test(d.message), d && d.message);
   const un = await q(`update polizas set eliminada_en = null where id = 1`);
   ok('"desmarcar" por la API afecta 0 filas', un.rowCount === 0);
 });
@@ -188,6 +196,14 @@ await como(DIGI, async (q) => {
   ok('sin pólizas rechazado', e && /No hay pólizas/.test(e.message), e && e.message);
   e = await falla(() => q(`select polizas_eliminacion_solicitar((select array_agg(g)::bigint[] from generate_series(1,201) g), 'motivo largo')`));
   ok('más de 200 rechazado', e && /200/.test(e.message), e && e.message);
+  for (const [nombre, motivo] of [['solo saltos de línea', '\n\n\n\n\n\n'], ['solo espacios no separables', '\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0'], ['solo tabs', '\t\t\t\t\t\t']]) {
+    const x = await falla(() => q(`select polizas_eliminacion_solicitar(array[5]::bigint[], $1)`, [motivo]));
+    ok(`motivo ${nombre} rechazado`, x && /motivo/i.test(x.message), x && x.message);
+  }
+  e = await falla(() => q(`select polizas_eliminacion_solicitar(array[5]::bigint[], $1)`, ['x'.repeat(501)]));
+  ok('motivo de más de 500 caracteres rechazado', e && /demasiado largo/.test(e.message), e && e.message);
+  e = await falla(() => q(`select polizas_eliminacion_solicitar(null::bigint[], 'motivo valido')`));
+  ok('lista de ids NULL rechazada', e && /No hay pólizas/.test(e.message), e && e.message);
   const r = await q(`select polizas_eliminacion_solicitar(array[1,2]::bigint[], 'otra vez') r`);
   ok('volver a marcar las ya marcadas: 0 solicitadas, 2 omitidas', r.rows[0].r.solicitadas === 0 && r.rows[0].r.omitidas.length === 2);
 });
@@ -209,15 +225,29 @@ ok('bandeja trae 2 con motivo, solicitante, cliente y n_pagos', pend.length === 
 const sol1 = pend.find(x => x.poliza_id === 1).id;
 const sol2 = pend.find(x => x.poliza_id === 2).id;
 
-// póliza 4 (solo pago anulado) la puede marcar; al aprobar se bloquea por el historial de pagos
+// póliza 4 (solo un pago anulado): ahora tampoco se marca, igual que al autorizar
 await comoCommit(DIGI, async (q) => {
   const r = await q(`select polizas_eliminacion_solicitar(array[4]::bigint[], 'prueba con pago anulado') r`);
-  ok('póliza con SOLO pago anulado se puede marcar', r.rows[0].r.solicitadas === 1, JSON.stringify(r.rows[0].r));
+  ok('póliza con SOLO pago anulado ya no se puede marcar (mismo criterio que al autorizar)',
+     r.rows[0].r.solicitadas === 0 && /pagos/.test(r.rows[0].r.omitidas[0].razon), JSON.stringify(r.rows[0].r));
 });
+// Póliza 9: se marca limpia y luego se le fuerza un pago por fuera (como un dato antiguo)
+const ID9 = Number((await c.query(`insert into polizas(nro_poliza, prima_poliza) values ('P-9', 900) returning id`)).rows[0].id);
+await comoCommit(DIGI, (q) => q(`select polizas_eliminacion_solicitar(array[${ID9}]::bigint[], 'prueba con pago tardío')`));
+{
+  let e = null;
+  try { await c.query(`insert into abonos_poliza(id_poliza, vlrabono_prima) values (${ID9}, 10)`); } catch (err) { e = err; }
+  ok('registrar un pago en una póliza marcada es rechazado por la base', e && /marcada para eliminar/.test(e.message), e && e.message);
+  await c.query('alter table abonos_poliza disable trigger trg_abonos_no_en_poliza_marcada');
+  await c.query(`insert into abonos_poliza(id_poliza, vlrabono_prima) values (${ID9}, 10)`);
+  await c.query('alter table abonos_poliza enable trigger trg_abonos_no_en_poliza_marcada');
+}
 await comoCommit(ADMIN, async (q) => {
-  const p4 = (await q('select polizas_eliminacion_pendientes() r')).rows[0].r.find(x => x.poliza_id === 4);
-  const r = (await q(`select polizas_eliminacion_resolver($1::bigint[], 'aprobar', 'x') r`, [[p4.id]])).rows[0].r;
-  ok('aprobar póliza con pagos (aunque anulados) se bloquea', r.resueltas === 0 && r.omitidas.length === 1 && /pagos/.test(r.omitidas[0].razon), JSON.stringify(r));
+  const p9 = (await q('select polizas_eliminacion_pendientes() r')).rows[0].r.find(x => x.poliza_id === ID9);
+  const r = (await q(`select polizas_eliminacion_resolver($1::bigint[], 'aprobar', 'x') r`, [[p9.id]])).rows[0].r;
+  ok('aprobar póliza con pagos se bloquea y sigue pendiente', r.resueltas === 0 && r.omitidas.length === 1 && /pagos/.test(r.omitidas[0].razon), JSON.stringify(r));
+  const r2 = (await q(`select polizas_eliminacion_resolver($1::bigint[], 'rechazar', 'se movieron los pagos después') r`, [[p9.id]])).rows[0].r;
+  ok('la salida es rechazar (restaura la póliza)', r2.resueltas === 1);
 });
 
 await comoCommit(ADMIN, async (q) => {
@@ -229,6 +259,8 @@ await comoCommit(ADMIN, async (q) => {
   ok('resolver dos veces la misma solicitud: se omite', r3.resueltas === 0 && r3.omitidas.length === 1);
   const e = await falla(() => q(`select polizas_eliminacion_resolver($1::bigint[], 'borrar_todo', null)`, [[sol1]]));
   ok('acción inválida rechazada', e && /Acción no válida/.test(e.message));
+  const e2 = await falla(() => q(`select polizas_eliminacion_resolver($1::bigint[], null, null)`, [[sol1]]));
+  ok('acción NULL rechazada (antes aprobaba y borraba)', e2 && /Acción no válida/.test(e2.message), e2 && e2.message);
 });
 
 const chk = await c.query(`select (select count(*)::int from polizas where id = 1) existe1,
@@ -248,7 +280,7 @@ await como(DIGI, async (q) => {
 });
 await como(ADMIN, async (q) => {
   const h = (await q('select polizas_eliminacion_historial(50) r')).rows[0].r;
-  ok('historial trae 2 resueltas', h.length === 2 && h.some(x => x.estado === 'aprobada' && x.nro_poliza === 'P-1'), JSON.stringify(h));
+  ok('historial trae las resueltas (aprobada con su número de póliza)', h.length >= 2 && h.some(x => x.estado === 'aprobada' && x.nro_poliza === 'P-1') && h.some(x => x.estado === 'rechazada'), JSON.stringify(h));
 });
 
 console.log('7) Dos administradores / concurrencia de la misma solicitud');
@@ -268,6 +300,37 @@ console.log('7) Dos administradores / concurrencia de la misma solicitud');
   const n = await c.query(`select count(*)::int n from polizas where id in (7,8)`);
   ok('pólizas 7 y 8 borradas', n.rows[0].n === 0);
   await c2.end();
+}
+
+console.log('8) Tope de 500 pendientes por usuario y guarda de políticas');
+{
+  await c.query(`insert into polizas(nro_poliza, prima_poliza) select 'T-'||g, 1 from generate_series(1,520) g`);
+  const ids = (await c.query(`select id from polizas where nro_poliza like 'T-%' order by id`)).rows.map(r => r.id);
+  for (let i = 0; i < 500; i += 200) {
+    await comoCommit(SUPER, (q) => q(`select polizas_eliminacion_solicitar($1::bigint[], 'carga de prueba')`, [ids.slice(i, Math.min(i + 200, 500))]));
+  }
+  const e = await como(SUPER, (q) => falla(() => q(`select polizas_eliminacion_solicitar($1::bigint[], 'una más')`, [ids.slice(500, 501)])));
+  ok('la póliza 501 pendiente del mismo usuario se rechaza', e && /pendientes de autorización/.test(e.message), e && e.message);
+  const otro = await comoCommit(DIGI, (q) => q(`select polizas_eliminacion_solicitar($1::bigint[], 'otro usuario') r`, [ids.slice(500, 502)]));
+  ok('otro usuario no queda afectado por el tope', otro.rows[0].r.solicitadas === 2);
+}
+{
+  const p = await c.query(`select count(*)::int n, count(*) filter (where cmd = 'DELETE')::int d from pg_policies where tablename = 'polizas'`);
+  ok('polizas queda con 3 políticas y ninguna de borrado', p.rows[0].n === 3 && p.rows[0].d === 0, JSON.stringify(p.rows[0]));
+  // Si alguien deja una política permisiva extra, la migración completa se aborta (nada se aplica)
+  await c.query(`create policy extra_permisiva on polizas for select to authenticated using (true)`);
+  const mig = fs.readFileSync(MIGRACION, 'utf8');
+  let e = null;
+  try { await c.query(mig); } catch (err) { e = err; }
+  await c.query('rollback').catch(() => {});
+  await c.query(`drop policy extra_permisiva on polizas`);
+  ok('con una política extra la migración se aborta y lo explica', e && /políticas adicionales/.test(e.message), e && e.message);
+  await c.query(mig); // vuelve a correr limpia: idempotente
+  ok('la migración es idempotente (se puede volver a correr)', true);
+}
+{
+  const g = await c.query(`select has_table_privilege('authenticated','polizas_eliminacion','select') s, has_table_privilege('authenticated','polizas','delete') d`);
+  ok('authenticated no tiene permisos de tabla sobre polizas_eliminacion ni DELETE en polizas', g.rows[0].s === false && g.rows[0].d === false, JSON.stringify(g.rows[0]));
 }
 
 console.log(`\nRESULTADO: ${pass} bien, ${fail} mal`);

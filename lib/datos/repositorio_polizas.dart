@@ -76,8 +76,13 @@ class RepositorioPolizas {
   /// sin volver a descargar las demás.
   static void quitarDeCache(Iterable<int> ids) {
     final fuera = ids.toSet();
+    _idsQuitados.addAll(fuera);
     _cacheTodos?.removeWhere((p) => fuera.contains(p.id));
   }
+
+  /// Ids marcados para eliminar mientras una descarga completa estaba en curso:
+  /// esa descarga puede traerlos (empezó antes) y no deben volver a la caché.
+  static final Set<int> _idsQuitados = {};
 
   static void invalidarCache() {
     _cacheTodos = null;
@@ -135,10 +140,13 @@ class RepositorioPolizas {
     final enCurso = _cargaEnCurso;
     if (enCurso != null && !forzar) return List.of(await enCurso);
 
+    _idsQuitados.clear();
     final carga = _descargarTodas('', onProgreso);
     _cargaEnCurso = carga;
     try {
-      final todas = await carga;
+      final todas = (await carga)
+          .where((p) => !_idsQuitados.contains(p.id))
+          .toList();
       _cacheTodos = todas;
       _cacheCargadoEn = DateTime.now();
       return List.of(todas);
@@ -281,15 +289,11 @@ class RepositorioPolizas {
     // Cero filas = la póliza ya no es visible (la marcaron para eliminar o la
     // borraron): no se debe dar por guardado un cambio que no se aplicó.
     if ((filas as List).isEmpty) {
+      quitarDeCache([id]);
       throw Exception('La póliza ya no está disponible: fue marcada para '
           'eliminar o borrada por otra persona. Recargue la lista.');
     }
     await refrescarEnCache([id]);
-  }
-
-  Future<void> eliminarPoliza(int id) async {
-    await _db.from(_tabla).delete().eq('id', id);
-    _cacheTodos?.removeWhere((p) => p.id == id);
   }
 
   Map<String, dynamic> _limpiarMapa(Map<String, dynamic> data) {
