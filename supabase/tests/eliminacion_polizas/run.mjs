@@ -333,6 +333,29 @@ console.log('8) Tope de 500 pendientes por usuario y guarda de políticas');
   ok('authenticated no tiene permisos de tabla sobre polizas_eliminacion ni DELETE en polizas', g.rows[0].s === false && g.rows[0].d === false, JSON.stringify(g.rows[0]));
 }
 
+console.log('9) Reversión: el script de rollback restaura todo y deja la política anterior');
+{
+  const ROLLBACK = path.join(AQUI, '../../rollback/20261015090000_eliminacion_polizas_rollback.sql');
+  const antes = (await c.query(`select count(*)::int n from polizas where eliminada_en is not null`)).rows[0].n;
+  ok('antes de revertir hay pólizas marcadas', antes > 0, String(antes));
+  await c.query(fs.readFileSync(ROLLBACK, 'utf8'));
+  const d = (await c.query(`select (select count(*)::int from polizas where eliminada_en is not null) marcadas,
+      (select count(*)::int from polizas_eliminacion where estado = 'pendiente') pendientes,
+      (select count(*)::int from polizas_eliminacion) conservadas,
+      (select count(*)::int from pg_policies where tablename = 'polizas' and policyname = 'app_authenticated_full_access') politica,
+      (select count(*)::int from pg_proc where proname like 'polizas_eliminacion_%') funciones,
+      has_table_privilege('authenticated', 'polizas', 'delete') borrar`)).rows[0];
+  ok('reversión: 0 marcadas, 0 pendientes, historial conservado', d.marcadas === 0 && d.pendientes === 0 && d.conservadas > 0, JSON.stringify(d));
+  ok('reversión: política anterior y permiso DELETE de vuelta, sin funciones nuevas', d.politica === 1 && d.borrar === true && d.funciones === 0, JSON.stringify(d));
+  await como(DIGI, async (q) => {
+    const n = await q('select count(*)::int n from polizas');
+    ok('tras revertir, el digitador vuelve a ver todas las pólizas', n.rows[0].n >= antes);
+  });
+  await c.query(fs.readFileSync(MIGRACION, 'utf8')); // y la migración se puede volver a aplicar
+  const m = (await c.query(`select count(*)::int n from pg_policies where tablename = 'polizas' and cmd = 'DELETE'`)).rows[0].n;
+  ok('volver a aplicar la migración tras revertir funciona (sin política de borrado)', m === 0);
+}
+
 console.log(`\nRESULTADO: ${pass} bien, ${fail} mal`);
 await c.end();
 await server.stop();
