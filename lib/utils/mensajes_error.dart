@@ -23,6 +23,9 @@ String _causa(Object e) {
   }
   if (e is PostgrestException) {
     final code = e.code ?? '';
+    // Mensajes propios de las funciones de la base (raise exception ... P0001):
+    // ya vienen en español y dicen qué pasó.
+    if (code == 'P0001' && e.message.trim().isNotEmpty) return e.message.trim();
     final msg = '${e.message} ${e.details ?? ''}'.toLowerCase();
     if (code == '23503' || msg.contains('foreign key')) {
       return 'Está en uso por otros registros (por ejemplo pólizas), así que no se puede eliminar o cambiar.';

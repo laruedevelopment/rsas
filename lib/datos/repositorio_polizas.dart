@@ -72,6 +72,13 @@ class RepositorioPolizas {
   /// Cuándo se descargó la copia en memoria (para mostrarlo en pantalla).
   static DateTime? get cacheCargadoEn => _cacheCargadoEn;
 
+  /// Saca de la copia en memoria las pólizas [ids] (marcadas para eliminar),
+  /// sin volver a descargar las demás.
+  static void quitarDeCache(Iterable<int> ids) {
+    final fuera = ids.toSet();
+    _cacheTodos?.removeWhere((p) => fuera.contains(p.id));
+  }
+
   static void invalidarCache() {
     _cacheTodos = null;
     _cacheCargadoEn = null;
@@ -263,10 +270,20 @@ class RepositorioPolizas {
   }
 
   Future<void> actualizarPoliza(int id, Map<String, dynamic> data) async {
-    await _db.from(_tabla).update({
-      ..._limpiarMapa(data),
-      'fultmod': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', id);
+    final filas = await _db
+        .from(_tabla)
+        .update({
+          ..._limpiarMapa(data),
+          'fultmod': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', id)
+        .select('id');
+    // Cero filas = la póliza ya no es visible (la marcaron para eliminar o la
+    // borraron): no se debe dar por guardado un cambio que no se aplicó.
+    if ((filas as List).isEmpty) {
+      throw Exception('La póliza ya no está disponible: fue marcada para '
+          'eliminar o borrada por otra persona. Recargue la lista.');
+    }
     await refrescarEnCache([id]);
   }
 

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../datos/repositorio_casos.dart';
+import '../datos/repositorio_eliminacion.dart';
 import '../datos/sesion.dart';
 import 'dashboard/pagina_dashboard.dart';
 import 'pagina_casos_revision.dart';
+import 'pagina_eliminaciones_pendientes.dart';
 import 'pagina_login.dart';
 import 'pagina_polizas.dart';
 import 'pagina_catalogos.dart';
@@ -25,13 +27,27 @@ class _PaginaInicioState extends State<PaginaInicio> {
   /// Casos por revisar pendientes (null = no se pudo consultar).
   int? _casosPendientes;
 
+  /// Pólizas marcadas para eliminar por autorizar (solo Administrador).
+  int? _eliminacionesPendientes;
+
   @override
   void initState() {
     super.initState();
     _contarCasos();
   }
 
+  Future<void> _contarEliminaciones() async {
+    if (!Sesion.esAdmin) return;
+    try {
+      final n = await RepositorioEliminacion().contarPendientes();
+      if (mounted) setState(() => _eliminacionesPendientes = n);
+    } catch (_) {
+      // Sin la migración (o sin conexión) la tarjeta sale sin contador.
+    }
+  }
+
   Future<void> _contarCasos() async {
+    _contarEliminaciones();
     try {
       final n = await RepositorioCasos().contarPendientes();
       if (mounted) setState(() => _casosPendientes = n);
@@ -207,6 +223,26 @@ class _PaginaInicioState extends State<PaginaInicio> {
                 },
               ),
               const SizedBox(height: 10),
+
+              // ── Eliminaciones por autorizar (solo Administrador) ──────────
+              if (Sesion.esAdmin) ...[
+                _NavCard(
+                  icon: Icons.delete_sweep_outlined,
+                  iconColor: AppTheme.danger,
+                  title: 'Eliminaciones por autorizar',
+                  subtitle: 'Pólizas que alguien marcó para eliminar: autorizar o rechazar',
+                  contador: _eliminacionesPendientes,
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PaginaEliminacionesPendientes()),
+                    );
+                    _contarEliminaciones();
+                  },
+                ),
+                const SizedBox(height: 10),
+              ],
 
               // ── Catálogos (Admin: todos / Digitador: Clientes, Aseguradoras,
               // Ramos y Productos — PaginaCatalogos oculta el resto sola) ────

@@ -8,9 +8,13 @@ import 'pagina_catalogos.dart';
 import 'pagina_estado_cuenta.dart';
 import 'pagina_polizas_duplicadas.dart';
 import 'pagina_polizas_pendientes.dart';
+import 'pagina_eliminaciones_pendientes.dart';
+import 'dialogos/eliminar_polizas.dart';
 import '../datos/poliza.dart';
 import '../datos/repositorio_polizas.dart';
 import '../datos/repositorio_polizas_pendientes.dart';
+import '../datos/repositorio_eliminacion.dart';
+import '../datos/sesion.dart';
 import '../datos/servicio_carga_masiva.dart';
 import '../utils/formatters.dart';
 import 'pagina_formulario_polizas.dart';
@@ -156,11 +160,18 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
   int _pendientesCount = 0;
   final _servicioCarga = ServicioCargaMasiva.instance;
 
+  // ── Selección para eliminar ───────────────────────────────────────────
+  bool _modoSeleccion = false;
+  final Set<int> _sel = {};
+  int _eliminacionesPendientes = 0; // solo Administrador
+  static const int _maxSeleccion = 200;
+
   @override
   void initState() {
     super.initState();
     _cargar();
     _cargarPendientesCount();
+    _cargarEliminacionesCount();
     _servicioCarga.addListener(_onCambioCargaMasiva);
   }
 
@@ -181,6 +192,60 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
       final n = await _repoPend.contar();
       if (mounted) setState(() => _pendientesCount = n);
     } catch (_) {}
+  }
+
+  Future<void> _cargarEliminacionesCount() async {
+    if (!Sesion.esAdmin) return;
+    try {
+      final n = await RepositorioEliminacion().contarPendientes();
+      if (mounted) setState(() => _eliminacionesPendientes = n);
+    } catch (_) {}
+  }
+
+  void _toggleSel(int id) => setState(() {
+        if (!_sel.remove(id)) {
+          if (_sel.length >= _maxSeleccion) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Máximo 200 pólizas por vez.')));
+            return;
+          }
+          _sel.add(id);
+        }
+      });
+
+  void _salirSeleccion() => setState(() {
+        _modoSeleccion = false;
+        _sel.clear();
+      });
+
+  /// Selecciona (hasta 200) las pólizas que hoy se ven con los filtros.
+  void _seleccionarVisibles(List<Poliza> visibles) => setState(() {
+        final ids = visibles.take(_maxSeleccion).map((p) => p.id);
+        _sel
+          ..clear()
+          ..addAll(ids);
+        if (visibles.length > _maxSeleccion) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Se seleccionaron las primeras 200 (máximo por vez).')));
+        }
+      });
+
+  /// Elimina (marca) [lista] o, si es null, las seleccionadas. Una sola
+  /// confirmación para todas.
+  Future<void> _eliminar([List<Poliza>? lista]) async {
+    final elegidas = lista ?? polizas.where((p) => _sel.contains(p.id)).toList();
+    if (elegidas.isEmpty) return;
+    final cambio = await mostrarDialogoEliminarPolizas(context, elegidas);
+    if (!mounted) return;
+    if (cambio) {
+      setState(() {
+        _modoSeleccion = false;
+        _sel.clear();
+      });
+      // La caché ya no tiene las marcadas: recargar es instantáneo.
+      _datosCompletos ? _cargarTodo() : _cargar();
+      _cargarEliminacionesCount();
+    }
   }
 
   @override
@@ -496,11 +561,19 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
       itemBuilder: (_, i) {
         final p = data[i];
 
+        final marcada = _sel.contains(p.id);
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
+          color: marcada ? AppTheme.navy.withOpacity(0.08) : null,
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
-            onTap: () => _abrirEditar(p),
+            onTap: _modoSeleccion ? () => _toggleSel(p.id) : () => _abrirEditar(p),
+            onLongPress: _modoSeleccion
+                ? null
+                : () => setState(() {
+                      _modoSeleccion = true;
+                      _sel.add(p.id);
+                    }),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Column(
@@ -508,6 +581,12 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
                 children: [
                   Row(
                     children: [
+                      if (_modoSeleccion)
+                        Checkbox(
+                          value: marcada,
+                          visualDensity: VisualDensity.compact,
+                          onChanged: (_) => _toggleSel(p.id),
+                        ),
                       Expanded(
                         child: Text(
                           p.nroPoliza ?? 'Sin número',
@@ -524,6 +603,14 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
                           color: Theme.of(context).colorScheme.outline,
                         ),
                       ),
+                      if (!_modoSeleccion)
+                        IconButton(
+                          tooltip: 'Eliminar (pide autorización)',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.delete_outline, size: 20),
+                          color: AppTheme.danger,
+                          onPressed: () => _eliminar([p]),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -679,7 +766,8 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
   static const _wValor = 80.0;
   static const _wFCreado = 138.0;
   static const _wUsuario = 50.0;
-  static const _wAcciones = 88.0;
+  static const _wAcciones = 124.0;
+  static const _wSel = 44.0;
   static const _totalAncho = _wCod + _wNro + _wBien + _wCliente + _wAseg +
       _wRamo + _wAsesor + _wFecha * 3 + _wPrima + _wValor + 12 +
       _wFCreado + _wUsuario + _wAcciones;
@@ -708,6 +796,23 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
       color: cs.surfaceContainerHighest,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: Row(children: [
+        if (_modoSeleccion)
+          SizedBox(
+            width: _wSel,
+            child: Checkbox(
+              tristate: true,
+              value: _sel.isEmpty
+                  ? false
+                  : (_sel.length >= _polizasFiltradas.length.clamp(0, _maxSeleccion) ? true : null),
+              onChanged: (_) {
+                if (_sel.isEmpty) {
+                  _seleccionarVisibles(_polizasFiltradas);
+                } else {
+                  setState(_sel.clear);
+                }
+              },
+            ),
+          ),
         col('Cód.', _wCod, 0, num: true),
         col('Nro Póliza', _wNro, 1),
         col('Bien Asegurado', _wBien, 2),
@@ -729,12 +834,21 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
   }
 
   Widget _filaPoliza(Poliza p) {
+    final marcada = _sel.contains(p.id);
     return InkWell(
-      onTap: () => _abrirEditar(p),
+      onTap: _modoSeleccion ? () => _toggleSel(p.id) : () => _abrirEditar(p),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppTheme.outlineVariant))),
+        decoration: BoxDecoration(
+          color: marcada ? AppTheme.navy.withOpacity(0.08) : null,
+          border: const Border(bottom: BorderSide(color: AppTheme.outlineVariant)),
+        ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          if (_modoSeleccion)
+            SizedBox(
+              width: _wSel,
+              child: Checkbox(value: marcada, onChanged: (_) => _toggleSel(p.id)),
+            ),
           SizedBox(width: _wCod, child: Text(p.id.toString(), style: const TextStyle(fontSize: 12), textAlign: TextAlign.right)),
           const SizedBox(width: 8),
           SizedBox(
@@ -860,6 +974,12 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
                 onPressed: () => _abrirEditar(p),
               ),
               IconButton(
+                tooltip: 'Eliminar (pide autorización)',
+                icon: const Icon(Icons.delete_outline, size: 18),
+                color: AppTheme.danger,
+                onPressed: () => _eliminar([p]),
+              ),
+              IconButton(
                 tooltip: 'Ver pagos',
                 icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
                 color: const Color(0xFF6A1B9A),
@@ -886,7 +1006,7 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
         controller: _horizontalCtrl,
         scrollDirection: Axis.horizontal,
         child: SizedBox(
-          width: _totalAncho + 16,
+          width: _totalAncho + 16 + (_modoSeleccion ? _wSel : 0),
           child: Column(children: [
             _encabezadoPolizas(),
             Expanded(
@@ -924,6 +1044,34 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
             icon: const Icon(Icons.add),
             onPressed: _nuevaPoliza,
           ),
+          IconButton(
+            tooltip: _modoSeleccion
+                ? 'Salir de la selección'
+                : 'Seleccionar varias pólizas para eliminar',
+            icon: Icon(_modoSeleccion ? Icons.close : Icons.checklist_rtl),
+            onPressed: () => _modoSeleccion
+                ? _salirSeleccion()
+                : setState(() => _modoSeleccion = true),
+          ),
+          if (Sesion.esAdmin)
+            IconButton(
+              tooltip: 'Eliminaciones por autorizar',
+              icon: Badge(
+                label: Text('$_eliminacionesPendientes'),
+                isLabelVisible: _eliminacionesPendientes > 0,
+                child: const Icon(Icons.delete_sweep_outlined),
+              ),
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const PaginaEliminacionesPendientes()),
+                );
+                if (!mounted) return;
+                _cargarEliminacionesCount();
+                _datosCompletos ? _cargarTodo() : _cargar();
+              },
+            ),
           IconButton(
             tooltip: 'Recargar lista',
             icon: const Icon(Icons.refresh),
@@ -1078,6 +1226,40 @@ class _PaginaPolizasState extends State<PaginaPolizas> {
               ],
             ),
           ),
+          if (_modoSeleccion)
+            Container(
+              width: double.infinity,
+              color: AppTheme.navy.withOpacity(0.06),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    _sel.isEmpty
+                        ? 'Toque las pólizas que quiere eliminar'
+                        : '${_sel.length} seleccionada(s)',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  TextButton(
+                    onPressed: () => _seleccionarVisibles(_polizasFiltradas),
+                    child: Text('Seleccionar las ${_polizasFiltradas.length.clamp(0, _maxSeleccion)} visibles'),
+                  ),
+                  if (_sel.isNotEmpty)
+                    TextButton(
+                        onPressed: () => setState(_sel.clear),
+                        child: const Text('Quitar selección')),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
+                    onPressed: _sel.isEmpty ? null : () => _eliminar(),
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: Text('Eliminar (${_sel.length})'),
+                  ),
+                  TextButton(onPressed: _salirSeleccion, child: const Text('Cancelar')),
+                ],
+              ),
+            ),
           if (cargando) ...[
             const LinearProgressIndicator(),
             if (_cargados > 0)
