@@ -25,6 +25,21 @@ class RepositorioPolizasPendientes {
     return rows.map(PolizaPendiente.fromMap).toList();
   }
 
+  /// Nombre corto (apodo) de cada usuario por id, para mostrar quién subió cada
+  /// póliza. Una consulta pequeña aparte: así la lista no depende de que la
+  /// base tenga la relación declarada.
+  Future<Map<int, String>> nombresUsuarios() async {
+    final res =
+        await _db.from('usuarios').select('id, apodo_usuario, nombre_usuario');
+    final out = <int, String>{};
+    for (final r in (res as List).cast<Map<String, dynamic>>()) {
+      final apodo = (r['apodo_usuario'] ?? '').toString().trim();
+      final nombre = (r['nombre_usuario'] ?? '').toString().trim();
+      out[(r['id'] as num).toInt()] = apodo.isNotEmpty ? apodo : nombre;
+    }
+    return out;
+  }
+
   Future<int> contar({String? estado}) async {
     dynamic q = _db.from(_tabla).select('id').filter('fdescartado', 'is', null);
     if (estado != null) q = q.eq('estado', estado);

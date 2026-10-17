@@ -27,6 +27,7 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
   String? _error;
   List<PolizaPendiente> _items = [];
   List<PolizaPendiente> _descartados = [];
+  Map<int, String> _usuarios = {};
   bool _verDescartados = false;
 
   // Orden y filtro de la lista: por fecha (la de descarte en "Descartados",
@@ -64,6 +65,7 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
                 (qNorm.isNotEmpty &&
                     normalizarAlfanumerico(p.nroPoliza).contains(qNorm)) ||
                 (p.nombreArchivo ?? '').toUpperCase().contains(qTexto) ||
+                (_quienSubio(p) ?? '').toUpperCase().contains(qTexto) ||
                 p.resumen.toUpperCase().contains(qTexto);
           }).toList();
 
@@ -133,7 +135,7 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               hintText:
-                  'Buscar por código, número de póliza, archivo o cliente…',
+                  'Buscar por código, número de póliza, archivo, cliente o quien la subió…',
               prefixIcon: const Icon(Icons.search),
               isDense: true,
               suffixIcon: _ctrlFiltro.text.isEmpty
@@ -163,6 +165,13 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
     );
   }
 
+  /// Quién subió o creó la póliza ("Subida por DIANA"), o null si no se sabe.
+  String? _quienSubio(PolizaPendiente p) {
+    final id = p.usuarioId;
+    if (id == null) return null;
+    return _usuarios[id] ?? 'usuario $id';
+  }
+
   Future<void> _cargar() async {
     setState(() {
       _cargando = true;
@@ -174,8 +183,14 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
       await _repo.purgarVencidos();
       final items = await _repo.listar();
       final descartados = await _repo.listar(incluirDescartados: true);
+      // Quién subió cada una: si falla, la lista sale igual, sin ese dato.
+      Map<int, String> usuarios = _usuarios;
+      try {
+        usuarios = await _repo.nombresUsuarios();
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
+        _usuarios = usuarios;
         _items = items;
         _descartados = descartados;
       });
@@ -390,6 +405,8 @@ class _PaginaPolizasPendientesState extends State<PaginaPolizasPendientes> {
           'Cód. ${p.id}',
           if (p.nroPoliza.isNotEmpty) 'Póliza ${p.nroPoliza}',
           if ((p.nombreArchivo ?? '').isNotEmpty) p.nombreArchivo!,
+          if (_quienSubio(p) != null)
+            '${p.origen == 'manual' ? 'Creada' : 'Subida'} por ${_quienSubio(p)}',
           if (p.errorMsg != null) 'Error: ${p.errorMsg}',
           if (descartada && p.fdescartado != null)
             'Descartado el ${_fecha(p.fdescartado!)} '

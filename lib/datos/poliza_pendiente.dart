@@ -5,6 +5,9 @@ class PolizaPendiente {
   final String? nombreArchivo;
   final String origen;
   final String? errorMsg;
+
+  /// Usuario que la subió o la creó (usuarios.id); null en datos antiguos.
+  final int? usuarioId;
   final DateTime fcreado;
   final DateTime fultmod;
   final DateTime? fdescartado;
@@ -16,6 +19,7 @@ class PolizaPendiente {
     this.nombreArchivo,
     required this.origen,
     this.errorMsg,
+    this.usuarioId,
     required this.fcreado,
     required this.fultmod,
     this.fdescartado,
@@ -28,6 +32,7 @@ class PolizaPendiente {
         nombreArchivo: m['nombre_archivo'] as String?,
         origen: m['origen'] as String? ?? 'manual',
         errorMsg: m['error_msg'] as String?,
+        usuarioId: (m['usuario_id'] as num?)?.toInt(),
         fcreado: DateTime.parse(m['fcreado'] as String),
         fultmod: DateTime.parse(m['fultmod'] as String),
         fdescartado: m['fdescartado'] == null

@@ -226,7 +226,7 @@ Deno.serve(async (req: Request) => {
       instrucciones: INSTRUCCIONES_BASE + textoCatalogo(catalogoProductos ?? []),
       partes: [{ inlineData: { mimeType, data: archivo.base64 } }],
       schema: RESPONSE_SCHEMA,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 8192,
     });
     if (!resultado.ok) return jsonError(resultado.error, resultado.status);
     return jsonOk(ajustarTotal(resultado.datos));
