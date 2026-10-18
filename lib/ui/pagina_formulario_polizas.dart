@@ -896,8 +896,10 @@ class _PaginaFormularioPolizasState extends State<PaginaFormularioPolizas> {
   /// Aviso de la extracción cuando el total leído no cuadraba con prima +
   /// gastos + IVA y la función lo corrigió (ver extraer-poliza).
   String _avisoTotal(Map<String, dynamic> datos) {
-    final a = datos['aviso_total'];
-    return a is String && a.isNotEmpty ? ' $a' : '';
+    final avisos = [datos['aviso_total'], datos['aviso_lectura']]
+        .whereType<String>()
+        .where((a) => a.isNotEmpty);
+    return avisos.isEmpty ? '' : ' ${avisos.join(' ')}';
   }
 
   void _toast(String msg) {

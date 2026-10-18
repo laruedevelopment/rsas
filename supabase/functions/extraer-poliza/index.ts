@@ -99,7 +99,9 @@ const RESPONSE_SCHEMA = {
     bien_asegurado: {
       type: "STRING",
       nullable: true,
-      description: "Bien o riesgo asegurado (ej. placa del vehículo, dirección del inmueble, objeto del contrato).",
+      description:
+        "Bien o riesgo asegurado (ej. placa del vehículo, dirección del inmueble, objeto del contrato). " +
+        "Resúmalo en máximo 300 caracteres: nunca copie párrafos largos.",
     },
   },
 };
@@ -227,6 +229,7 @@ Deno.serve(async (req: Request) => {
       partes: [{ inlineData: { mimeType, data: archivo.base64 } }],
       schema: RESPONSE_SCHEMA,
       maxOutputTokens: 8192,
+      tolerarTruncado: true,
     });
     if (!resultado.ok) return jsonError(resultado.error, resultado.status);
     return jsonOk(ajustarTotal(resultado.datos));

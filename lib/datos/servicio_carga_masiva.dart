@@ -148,6 +148,7 @@ class ServicioCargaMasiva extends ChangeNotifier {
         final s = e.toString().toLowerCase();
         final temporal = s.contains('límite de uso') ||
             s.contains('no está disponible') ||
+            s.contains('no se pudo leer este documento') ||
             s.contains('(429)') ||
             s.contains('(502)') ||
             s.contains('(503)') ||

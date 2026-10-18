@@ -1,6 +1,7 @@
 // Código compartido por las Edge Functions de extracción con IA.
 
 import { decodeBase64, encodeBase64 } from "jsr:@std/encoding@1/base64";
+import { rescatarJsonTruncado } from "./json_parcial.ts";
 
 export const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -116,6 +117,13 @@ export async function llamarGemini(opciones: {
   partes: Record<string, unknown>[];
   schema: unknown;
   maxOutputTokens: number;
+  /// Si la IA se queda sin espacio de salida: reintenta una vez con más margen y
+  /// otra temperatura (rompe los bucles de repetición) y, si aun así se corta,
+  /// devuelve los campos completos que alcanzó a escribir en vez de fallar.
+  tolerarTruncado?: boolean;
+  /// Uso interno del reintento.
+  temperatura?: number;
+  esReintento?: boolean;
   etiqueta: string;
 }): Promise<ResultadoGemini> {
   if (!GOOGLE_API_KEY) {
@@ -137,6 +145,7 @@ export async function llamarGemini(opciones: {
           responseMimeType: "application/json",
           responseSchema: opciones.schema,
           maxOutputTokens: opciones.maxOutputTokens,
+          ...(opciones.temperatura != null ? { temperature: opciones.temperatura } : {}),
           ...(conThinking ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
         },
       }),
@@ -195,6 +204,35 @@ export async function llamarGemini(opciones: {
     .join("");
 
   if (finishReason === "MAX_TOKENS") {
+    console.warn(`${opciones.etiqueta}: MAX_TOKENS (largo del texto=${texto.length}, reintento=${!!opciones.esReintento})`);
+    if (opciones.tolerarTruncado) {
+      if (!opciones.esReintento) {
+        const r = await llamarGemini({
+          ...opciones,
+          esReintento: true,
+          temperatura: 0.4,
+          maxOutputTokens: opciones.maxOutputTokens * 2,
+        });
+        if (r.ok) return r;
+      }
+      const parcial = rescatarJsonTruncado(texto);
+      if (parcial && Object.keys(parcial).length >= 3) {
+        console.warn(`${opciones.etiqueta}: se rescataron ${Object.keys(parcial).length} campos del JSON cortado`);
+        return {
+          ok: true,
+          datos: {
+            ...parcial,
+            aviso_lectura:
+              "La lectura se cortó antes de terminar: revise con cuidado los últimos datos contra el documento.",
+          },
+        };
+      }
+      return {
+        ok: false,
+        error: "No se pudo leer este documento. Intente de nuevo; si sigue igual, digítelo a mano.",
+        status: 422,
+      };
+    }
     return {
       ok: false,
       error: "El documento es demasiado largo para leerlo de una vez. Divídalo en partes más pequeñas.",
