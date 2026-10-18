@@ -172,20 +172,23 @@ class _DialogoEliminarPolizasState extends State<DialogoEliminarPolizas> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Mientras tanto no la verá en listas ni estadísticas. Si el administrador '
-                      'la rechaza, vuelve a aparecer. '
-                      '${Sesion.esAdmin ? 'Como usted es administrador, la autoriza desde "Eliminaciones por autorizar".' : ''}',
+                      '${varias ? 'Mientras tanto no las verá en listas ni estadísticas. Si el administrador las rechaza, vuelven a aparecer. ' : 'Mientras tanto no la verá en listas ni estadísticas. Si el administrador la rechaza, vuelve a aparecer. '}'
+                      '${Sesion.esAdmin ? 'Como usted es administrador, ${varias ? 'las' : 'la'} autoriza desde "Eliminaciones por autorizar".' : ''}',
                       style: const TextStyle(
                           fontSize: 13,
                           height: 1.35,
                           color: AppTheme.onWarningContainer),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Una póliza con pagos registrados no se puede eliminar: primero hay que '
-                      'mover los pagos a la póliza correcta. Si solo quiere que deje de contar, '
-                      'anúlela (se puede revertir).',
-                      style: TextStyle(
+                    Text(
+                      varias
+                          ? 'Una póliza con pagos registrados no se puede eliminar: primero hay que '
+                              'mover los pagos a la póliza correcta. Si solo quiere que dejen de contar, '
+                              'anúlelas (se puede revertir).'
+                          : 'Una póliza con pagos registrados no se puede eliminar: primero hay que '
+                              'mover los pagos a la póliza correcta. Si solo quiere que deje de contar, '
+                              'anúlela (se puede revertir).',
+                      style: const TextStyle(
                           fontSize: 13,
                           height: 1.35,
                           color: AppTheme.onWarningContainer),
