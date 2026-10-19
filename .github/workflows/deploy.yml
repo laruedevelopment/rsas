@@ -22,12 +22,15 @@ jobs:
         run: flutter pub get
 
       - name: Build web
-        run: flutter build web --release --dart-define=APP_ENV=prod --base-href /SegurAppRSAS/
+        run: flutter build web --release --dart-define=APP_ENV=prod --base-href /SegurAppRSAS/flutter/
 
-      - name: Deploy to SegurAppRSAS
+      # La app principal ahora es la versión React (raíz del sitio); esta queda de respaldo en /flutter/.
+      - name: Deploy to SegurAppRSAS/flutter
         run: |
           git clone https://x-access-token:${{ secrets.DEPLOY_TOKEN }}@github.com/laruedevelopment/SegurAppRSAS.git deploy_repo
-          cp -r build/web/. deploy_repo/
+          mkdir -p deploy_repo/flutter
+          find deploy_repo/flutter -mindepth 1 -delete
+          cp -r build/web/. deploy_repo/flutter/
           cd deploy_repo
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
