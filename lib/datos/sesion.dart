@@ -30,7 +30,7 @@ class Sesion {
   /// Sin sesión = sin permisos (antes se trataba como acceso completo).
   static String get rol => (_usuario?.rol ?? '').toUpperCase();
   static bool get esAdmin => rol == 'A';
-  static bool get veComisiones => rol == 'A' || rol == 'S';
+  static bool get veComisiones => rol == 'A' || rol == 'S' || rol == 'D';
 
   static void iniciar(Usuario u, {DateTime? expira}) {
     _usuario = u;

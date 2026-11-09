@@ -272,7 +272,7 @@ class _PaginaInicioState extends State<PaginaInicio> {
                 ),
               ),
 
-              // ── Reportes de comisiones (no visible para digitadores) ────────
+              // ── Reportes de comisiones (visible para todos los roles) ───────
               if (Sesion.veComisiones) ...[
                 const SizedBox(height: 10),
                 _NavCard(
