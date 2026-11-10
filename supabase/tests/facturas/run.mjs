@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const MIGRACION = path.join(AQUI, '../../migrations/20261111090000_facturas.sql');
+const MIGRACION2 = path.join(AQUI, '../../migrations/20261111100000_facturas_ajustes_digitador.sql');
 const DIR = path.join(os.tmpdir(), 'pgtest-facturas-' + process.pid);
 
 fs.rmSync(DIR, { recursive: true, force: true });
@@ -58,6 +59,10 @@ const sql = fs.readFileSync(MIGRACION, 'utf8');
 await c.query(sql);
 await c.query(sql);
 ok('la migración corre dos veces sin error', true);
+const sql2 = fs.readFileSync(MIGRACION2, 'utf8');
+await c.query(sql2);
+await c.query(sql2);
+ok('la migración de ajustes para digitador corre dos veces sin error', true);
 
 const claims = (sub) => JSON.stringify({ sub: String(sub), role: 'authenticated' });
 const como = async (sub, fn, confirmar = false) => {
@@ -90,7 +95,9 @@ const cfg = (await c.query(`select clave, valor from facturacion_config order by
 ok('porcentajes iniciales: IVA 0, retención 10, ICA 0', cfg.length === 3 && cfg.find((x) => x.clave === 'retefuente_pct').valor == 10);
 await como(ADMIN, () => c.query(`select facturacion_config_guardar(19, 11, 0.5)`), true);
 ok('el administrador cambia los porcentajes por defecto', Number((await c.query(`select valor from facturacion_config where clave='iva_pct'`)).rows[0].valor) === 19);
-ok('un digitador NO cambia los porcentajes', /Solo un Administrador/.test(await falla(DIGI, `select facturacion_config_guardar(1,1,1)`)));
+await como(DIGI, () => c.query(`select facturacion_config_guardar(5, 10, 0)`), true);
+ok('un digitador SÍ cambia los porcentajes', Number((await c.query(`select valor from facturacion_config where clave='iva_pct'`)).rows[0].valor) === 5);
+ok('un usuario sin rol NO cambia los porcentajes', /No tiene permiso/.test(await falla(NADIE, `select facturacion_config_guardar(1,1,1)`)));
 ok('porcentajes fuera de rango se rechazan', /entre 0 y 100/.test(await falla(ADMIN, `select facturacion_config_guardar(101,1,1)`)));
 ok('el digitador puede LEER los porcentajes', (await como(DIGI, () => c.query(`select * from facturacion_config`))).rows.length === 3);
 await como(ADMIN, () => c.query(`select facturacion_config_guardar(0, 10, 0)`), true);
@@ -137,7 +144,11 @@ ok('una factura pagada no se recalcula', /pagada o anulada/.test(await falla(DIG
 ok('un digitador puede leer facturas', (await como(DIGI, () => c.query(`select * from facturas`))).rows.length === 2);
 ok('un usuario sin rol no ve facturas', (await como(NADIE, () => c.query(`select * from facturas`))).rows.length === 0);
 ok('un digitador NO puede borrar facturas', (await como(DIGI, () => c.query(`delete from facturas where id = ${id2}`))).rowCount === 0);
-ok('un digitador NO puede crear empresas aseguradoras', /row-level security/.test(await falla(DIGI, `insert into facturas_empresas(aseg_id, nombre, nit) values (1, 'X', '860.009.578-6')`)));
+ok('un usuario sin rol NO puede crear empresas aseguradoras', /row-level security/.test(await falla(NADIE, `insert into facturas_empresas(aseg_id, nombre, nit) values (1, 'X', '860.009.578-6')`)));
+await como(DIGI, () => c.query(`insert into facturas_empresas(aseg_id, nombre, nit, iva_pct) values (1, 'EMPRESA DIGI', '900.111.222-3', 16)`), true);
+ok('un digitador SÍ crea y edita empresas', (await como(DIGI, () => c.query(`update facturas_empresas set iva_pct = 0 where nit_norm = '9001112223' returning id`), true)).rows.length === 1);
+ok('un digitador NO borra empresas', (await como(DIGI, () => c.query(`delete from facturas_empresas where nit_norm = '9001112223' returning id`), true)).rows.length === 0);
+await c.query(`delete from facturas_empresas where nit_norm = '9001112223'`);
 await como(ADMIN, () => c.query(`insert into facturas_empresas(aseg_id, nombre, nit) values (1, 'SEGUROS DEL ESTADO S.A. (Generales)', '860.009.578-6')`), true);
 ok('el administrador crea empresas y el NIT se normaliza', (await c.query(`select nit_norm from facturas_empresas`)).rows[0].nit_norm === '8600095786');
 ok('el mismo NIT no se repite aunque cambie el formato', /duplicate key|unique/.test(await falla(ADMIN, `insert into facturas_empresas(aseg_id, nombre, nit) values (1, 'OTRA', '860009578-6')`)));
