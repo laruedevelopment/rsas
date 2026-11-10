@@ -6,6 +6,7 @@ Uso:
     python generar_importacion_facturas.py <carpeta_con_los_CSV> <carpeta_de_salida>
 
 Deja en la carpeta de salida (NO en el repositorio: son datos del negocio):
+    0_verificar.sql  revisa SIN CAMBIAR NADA que los códigos coincidan con la base y no se dupliquen
     1_empresas.sql   las empresas aseguradoras (por NIT), con su IVA
     2_facturas.sql   las facturas, con sus códigos originales (los que usan los abonos)
     3_cierre.sql     ajusta los consecutivos y revisa que cuadre todo
@@ -160,6 +161,62 @@ with open(salida / '3_cierre.sql', 'w', encoding='utf-8') as f:
         "      and not exists (select 1 from facturas fa where fa.id = ab.idfactura)) as abonos_con_factura_inexistente,\n"
         "  (select factura_prefijo_vigente()) as prefijo_vigente,\n"
         "  (select max(num_factura) from facturas where prefijo = (select factura_prefijo_vigente())) as ultimo_numero;\n"
+    )
+
+
+# ── Verificación previa (solo lee) ──────────────────────────────────────────
+def nombres(archivo):
+    return {entero(r['Codigo']): ' '.join(r['Nombre'].split()) for r in leer(archivo)}
+
+
+aseg_antiguas = nombres('ASEGURADORAS.csv')
+interm_antiguos = nombres('INTERMEDIARIOS.csv')
+aseg_usadas = sorted({entero(r['Codaseg']) for r in facturas} | {a for _, a, *_ in filas_emp})
+interm_usados = sorted({entero(r['Codinterm']) for r in facturas})
+codigos_factura = sorted(entero(r['Codigo']) for r in facturas)
+
+
+def valores(pares):
+    return ',\n  '.join(f"({c}, {sql_txt(n)})" for c, n in pares)
+
+
+with open(salida / '0_verificar.sql', 'w', encoding='utf-8') as f:
+    f.write('-- VERIFICACIÓN: solo lee, no cambia nada. Correrla ANTES de los otros archivos.\n')
+    f.write('-- Compara los códigos del software anterior con los que ya hay en la base.\n')
+    f.write('-- Devuelve una tabla: lo que diga DIFERENTE o NO EXISTE hay que revisarlo.\n\n')
+    f.write('with\n')
+    f.write('aseg_ant(cod, nombre) as (values\n  ' + valores([(c, aseg_antiguas.get(c, '(sin nombre)')) for c in aseg_usadas]) + '\n),\n')
+    f.write('interm_ant(cod, nombre) as (values\n  ' + valores([(c, interm_antiguos.get(c, '(sin nombre)')) for c in interm_usados]) + '\n),\n')
+    f.write('fact_ant(cod) as (values\n  ' + ',\n  '.join(f'({c})' for c in codigos_factura) + '\n)\n')
+    f.write(
+        "select 'aseguradora' as revisar, o.cod::text as codigo, o.nombre as software_anterior, a.nombre_aseg as base_actual,\n"
+        "       case when a.id is null then 'NO EXISTE'\n"
+        "            when upper(btrim(a.nombre_aseg)) = upper(btrim(o.nombre)) then 'coincide'\n"
+        "            else 'DIFERENTE' end as resultado\n"
+        "  from aseg_ant o left join aseguradoras a on a.id = o.cod\n"
+        "union all\n"
+        "select 'intermediario', o.cod::text, o.nombre, i.nombre_interm,\n"
+        "       case when i.id is null then 'NO EXISTE'\n"
+        "            when upper(btrim(i.nombre_interm)) = upper(btrim(o.nombre)) then 'coincide'\n"
+        "            else 'DIFERENTE' end\n"
+        "  from interm_ant o left join intermediarios i on i.id = o.cod\n"
+        "union all\n"
+        "select 'facturas ya cargadas en la base (deben ser 0)', count(*)::text, '', '',\n"
+        "       case when count(*) = 0 then 'coincide' else 'REVISAR: ya hay facturas' end\n"
+        "  from facturas\n"
+        "union all\n"
+        "select 'abonos con factura que NO viene en el archivo (deben ser 0)', count(*)::text, '', '',\n"
+        "       case when count(*) = 0 then 'coincide' else 'REVISAR: quedarían enlaces rotos' end\n"
+        "  from abonos_poliza ab\n"
+        "  where ab.idfactura is not null and ab.idfactura not in (select cod from fact_ant)\n"
+        "union all\n"
+        "select 'abonos enlazados a una factura', count(*)::text, count(distinct idfactura)::text || ' facturas distintas', '', 'informativo'\n"
+        "  from abonos_poliza where idfactura is not null\n"
+        "union all\n"
+        "select 'empresas ya cargadas en la base (deben ser 0)', count(*)::text, '', '',\n"
+        "       case when count(*) = 0 then 'coincide' else 'REVISAR: ya hay empresas' end\n"
+        "  from facturas_empresas\n"
+        "order by 1, 2;\n"
     )
 
 print(f'Empresas: {len(filas_emp)} | Facturas: {total_facturas} | con retención de IVA 50 %: {n_reteiva}')
