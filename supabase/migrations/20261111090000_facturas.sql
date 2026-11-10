@@ -20,6 +20,15 @@
 -- OJO: abonos_poliza.num_factura NO se toca: es el recibo/factura que trae el
 -- reporte de la aseguradora, no nuestro número de factura.
 --
+-- · IVA por empresa: cada empresa aseguradora trae su IVA (16 % las de Generales,
+--   0 % las de Vida): al elegirla en la factura el IVA parte de ese valor.
+-- · Retención de IVA (reteiva): en el software anterior, a 55 facturas con IVA se
+--   les restaba además la mitad del IVA al valor a consignar. Se conserva como un
+--   porcentaje más (0 por defecto):
+--     neto = total − retención − ICA − retención de IVA
+-- · El prefijo de la factura nueva es el de la última factura cargada (el software
+--   anterior terminó en el prefijo 2, número 2730).
+--
 -- Quién puede: A, S y D crean y editan; solo A elimina.
 -- Se puede volver a correr sin problema. Correr primero en PRUEBAS.
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -31,10 +40,12 @@ create table if not exists facturas_empresas (
   nombre    text not null,
   nit       text not null,
   nit_norm  text generated always as (regexp_replace(nit, '\D', '', 'g')) stored,
+  iva_pct   numeric not null default 0 check (iva_pct >= 0 and iva_pct <= 100),
   activa    boolean not null default true,
-  fcreado   timestamptz not null default now(),
-  constraint facturas_empresas_nit_ck check (length(regexp_replace(nit, '\D', '', 'g')) >= 6)
+  fcreado   timestamptz not null default now()
 );
+alter table facturas_empresas add column if not exists iva_pct numeric not null default 0;
+alter table facturas_empresas drop constraint if exists facturas_empresas_nit_ck;
 create unique index if not exists facturas_empresas_nit_uq on facturas_empresas (nit_norm);
 create index if not exists facturas_empresas_aseg_idx on facturas_empresas (aseg_id);
 
@@ -64,14 +75,18 @@ create table if not exists facturas (
   retefuente      numeric not null default 0,
   ica_pct         numeric not null default 0,
   ica             numeric not null default 0,
+  reteiva_pct     numeric not null default 0,     -- retención de IVA (sobre el IVA)
+  reteiva         numeric not null default 0,
   total           numeric not null default 0,     -- subtotal + IVA
-  neto            numeric not null default 0,     -- total − retención − ICA
+  neto            numeric not null default 0,     -- total − retención − ICA − retención de IVA
   estado          char(1) not null default 'A' check (estado in ('A', 'C', 'R', 'P', 'N')),
   usuario_id      bigint references usuarios(id),
   fcreado         timestamptz not null default now(),
   fultmod         timestamptz not null default now(),
   constraint facturas_numero_uq unique (prefijo, num_factura)
 );
+alter table facturas add column if not exists reteiva_pct numeric not null default 0;
+alter table facturas add column if not exists reteiva numeric not null default 0;
 create index if not exists facturas_aseg_idx on facturas (aseg_id);
 create index if not exists facturas_estado_idx on facturas (estado);
 create index if not exists facturas_fecha_idx on facturas (fecha desc);
@@ -140,10 +155,11 @@ grant select, insert, update, delete on facturas_empresas to authenticated;
 grant select on facturacion_config to authenticated;
 
 -- ── Cálculo de montos (una sola fórmula para todo) ─────────────────────────
+drop function if exists factura_montos(numeric, numeric, numeric, numeric);
 create or replace function factura_montos(
-  p_subtotal numeric, p_iva_pct numeric, p_rete_pct numeric, p_ica_pct numeric
+  p_subtotal numeric, p_iva_pct numeric, p_rete_pct numeric, p_ica_pct numeric, p_reteiva_pct numeric default 0
 )
-returns table (iva numeric, total numeric, retefuente numeric, ica numeric, neto numeric)
+returns table (iva numeric, total numeric, retefuente numeric, ica numeric, reteiva numeric, neto numeric)
 language sql
 immutable
 as $$
@@ -152,13 +168,26 @@ as $$
     p_subtotal + round(p_subtotal * p_iva_pct / 100, 2),
     round(p_subtotal * p_rete_pct / 100, 2),
     round(p_subtotal * p_ica_pct / 100, 2),
+    round(round(p_subtotal * p_iva_pct / 100, 2) * p_reteiva_pct / 100, 2),
     p_subtotal + round(p_subtotal * p_iva_pct / 100, 2)
       - round(p_subtotal * p_rete_pct / 100, 2)
-      - round(p_subtotal * p_ica_pct / 100, 2);
+      - round(p_subtotal * p_ica_pct / 100, 2)
+      - round(round(p_subtotal * p_iva_pct / 100, 2) * p_reteiva_pct / 100, 2);
 $$;
 
--- ── Siguiente número del prefijo ───────────────────────────────────────────
-create or replace function factura_siguiente_numero(p_prefijo int default 1)
+-- ── Prefijo vigente y siguiente número ─────────────────────────────────────
+create or replace function factura_prefijo_vigente()
+returns int
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce((select prefijo from facturas order by fecha desc, id desc limit 1), 1);
+$$;
+
+drop function if exists factura_siguiente_numero(int);
+create or replace function factura_siguiente_numero(p_prefijo int default null)
 returns int
 language sql
 security definer
@@ -166,10 +195,12 @@ set search_path = public
 stable
 as $$
   select case when app_rol() in ('A', 'S', 'D')
-              then coalesce((select max(num_factura) from facturas where prefijo = p_prefijo), 0) + 1 end;
+    then coalesce((select max(num_factura) from facturas
+                    where prefijo = coalesce(p_prefijo, factura_prefijo_vigente())), 0) + 1 end;
 $$;
 
 -- ── Crear una factura con las líneas elegidas (todo o nada) ────────────────
+drop function if exists factura_crear(bigint, bigint, bigint, date, bigint[], text, numeric, numeric, numeric, int);
 create or replace function factura_crear(
   p_aseg_id    bigint,
   p_interm_id  bigint,
@@ -180,7 +211,8 @@ create or replace function factura_crear(
   p_iva_pct    numeric default null,
   p_rete_pct   numeric default null,
   p_ica_pct    numeric default null,
-  p_prefijo    int default 1
+  p_reteiva_pct numeric default 0,
+  p_prefijo    int default null
 )
 returns bigint
 language plpgsql
@@ -197,6 +229,8 @@ declare
   v_iva_pct  numeric;
   v_rete_pct numeric;
   v_ica_pct  numeric;
+  v_reteiva  numeric := coalesce(p_reteiva_pct, 0);
+  v_pref     int;
   v_num      int;
   v_id       bigint;
   m          record;
@@ -215,8 +249,8 @@ begin
     raise exception 'Falta la aseguradora.' using errcode = 'P0001';
   end if;
 
-  -- Una factura a la vez por prefijo: evita números repetidos.
-  perform pg_advisory_xact_lock(hashtext('factura_numero_' || p_prefijo));
+  -- Una factura a la vez: evita números repetidos.
+  perform pg_advisory_xact_lock(hashtext('factura_numero'));
 
   select count(*),
          count(*) filter (where ab.idfactura is not null),
@@ -236,24 +270,30 @@ begin
   if v_otra > 0 then
     raise exception 'Todas las líneas deben ser de la misma aseguradora de la factura.' using errcode = 'P0001';
   end if;
+  if v_sub <= 0 then
+    raise exception 'El subtotal de la factura debe ser mayor que cero (las líneas suman %). Incluya también líneas positivas.', v_sub using errcode = 'P0001';
+  end if;
 
-  v_iva_pct  := coalesce(p_iva_pct,  (select valor from facturacion_config where clave = 'iva_pct'), 0);
+  v_iva_pct  := coalesce(p_iva_pct,  (select iva_pct from facturas_empresas where id = p_empresa_id),
+                                     (select valor from facturacion_config where clave = 'iva_pct'), 0);
   v_rete_pct := coalesce(p_rete_pct, (select valor from facturacion_config where clave = 'retefuente_pct'), 0);
   v_ica_pct  := coalesce(p_ica_pct,  (select valor from facturacion_config where clave = 'ica_pct'), 0);
-  if least(v_iva_pct, v_rete_pct, v_ica_pct) < 0 or greatest(v_iva_pct, v_rete_pct, v_ica_pct) > 100 then
+  if least(v_iva_pct, v_rete_pct, v_ica_pct, v_reteiva) < 0
+     or greatest(v_iva_pct, v_rete_pct, v_ica_pct, v_reteiva) > 100 then
     raise exception 'Los porcentajes deben estar entre 0 y 100.' using errcode = 'P0001';
   end if;
 
-  select * into m from factura_montos(v_sub, v_iva_pct, v_rete_pct, v_ica_pct);
-  v_num := coalesce((select max(num_factura) from facturas where prefijo = p_prefijo), 0) + 1;
+  select * into m from factura_montos(v_sub, v_iva_pct, v_rete_pct, v_ica_pct, v_reteiva);
+  v_pref := coalesce(p_prefijo, factura_prefijo_vigente());
+  v_num := coalesce((select max(num_factura) from facturas where prefijo = v_pref), 0) + 1;
 
   insert into facturas (prefijo, num_factura, fecha, aseg_id, interm_id, empresa_id, observacion,
-                        subtotal, iva_pct, iva, retefuente_pct, retefuente, ica_pct, ica, total, neto,
-                        usuario_id)
-  values (p_prefijo, v_num, coalesce(p_fecha, current_date), p_aseg_id, p_interm_id, p_empresa_id,
+                        subtotal, iva_pct, iva, retefuente_pct, retefuente, ica_pct, ica,
+                        reteiva_pct, reteiva, total, neto, usuario_id)
+  values (v_pref, v_num, coalesce(p_fecha, current_date), p_aseg_id, p_interm_id, p_empresa_id,
           nullif(trim(p_observacion), ''),
-          v_sub, v_iva_pct, m.iva, v_rete_pct, m.retefuente, v_ica_pct, m.ica, m.total, m.neto,
-          app_usuario_id())
+          v_sub, v_iva_pct, m.iva, v_rete_pct, m.retefuente, v_ica_pct, m.ica,
+          v_reteiva, m.reteiva, m.total, m.neto, app_usuario_id())
   returning id into v_id;
 
   update abonos_poliza set idfactura = v_id where id = any(v_ids);
@@ -285,10 +325,10 @@ begin
   end if;
   select coalesce(sum(coalesce(vlrcomision, 0) + coalesce(vlrcomad, 0)), 0) into v_sub
     from abonos_poliza where idfactura = p_factura and estado_pago <> 'A';
-  select * into m from factura_montos(v_sub, f.iva_pct, f.retefuente_pct, f.ica_pct);
+  select * into m from factura_montos(v_sub, f.iva_pct, f.retefuente_pct, f.ica_pct, f.reteiva_pct);
   update facturas
      set subtotal = v_sub, iva = m.iva, total = m.total,
-         retefuente = m.retefuente, ica = m.ica, neto = m.neto
+         retefuente = m.retefuente, ica = m.ica, reteiva = m.reteiva, neto = m.neto
    where id = p_factura;
 end;
 $$;
@@ -314,11 +354,13 @@ end;
 $$;
 
 revoke all on function factura_siguiente_numero(int) from public, anon;
-revoke all on function factura_crear(bigint, bigint, bigint, date, bigint[], text, numeric, numeric, numeric, int) from public, anon;
+revoke all on function factura_prefijo_vigente() from public, anon;
+revoke all on function factura_crear(bigint, bigint, bigint, date, bigint[], text, numeric, numeric, numeric, numeric, int) from public, anon;
 revoke all on function factura_recalcular(bigint) from public, anon;
 revoke all on function facturacion_config_guardar(numeric, numeric, numeric) from public, anon;
-grant execute on function factura_montos(numeric, numeric, numeric, numeric) to authenticated;
+grant execute on function factura_montos(numeric, numeric, numeric, numeric, numeric) to authenticated;
+grant execute on function factura_prefijo_vigente() to authenticated;
 grant execute on function factura_siguiente_numero(int) to authenticated;
-grant execute on function factura_crear(bigint, bigint, bigint, date, bigint[], text, numeric, numeric, numeric, int) to authenticated;
+grant execute on function factura_crear(bigint, bigint, bigint, date, bigint[], text, numeric, numeric, numeric, numeric, int) to authenticated;
 grant execute on function factura_recalcular(bigint) to authenticated;
 grant execute on function facturacion_config_guardar(numeric, numeric, numeric) to authenticated;

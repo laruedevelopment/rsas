@@ -146,6 +146,30 @@ const huerfana = (await como(ADMIN, () => c.query(`delete from facturas where id
 const l5 = (await c.query(`select idfactura from abonos_poliza where id = 5`)).rows[0];
 ok('al borrar una factura sus líneas quedan libres (idfactura nulo)', huerfana === 1 && l5.idfactura === null, JSON.stringify(l5));
 
+// ── Retención de IVA, IVA por empresa, subtotal y prefijo vigente ──────────
+const m3 = (await c.query(`select * from factura_montos(672706.04, 16, 11, 0, 50)`)).rows[0];
+ok('con retención de IVA 50 %: reproduce el valor a consignar de la factura 1413 (652.524,86)',
+  Number(m3.iva) === 107632.97 && Number(m3.retefuente) === 73997.66 && Number(m3.reteiva) === 53816.49 && Math.abs(Number(m3.neto) - 652524.86) < 0.011, JSON.stringify(m3));
+
+await como(ADMIN, () => c.query(`insert into facturas_empresas(aseg_id, nombre, nit, iva_pct) values (2, 'SOLIDARIA GENERALES', '860.524.654-6', 16)`), true);
+const empresaIva = (await c.query(`select id from facturas_empresas where nit_norm = '8605246546'`)).rows[0].id;
+const id3 = (await como(DIGI, () => c.query(`select factura_crear(2, 1, $1, null, array[5]) id`, [empresaIva]), true)).rows[0].id;
+const f3 = (await c.query(`select * from facturas where id = $1`, [id3])).rows[0];
+ok('el IVA de la factura parte del de la empresa elegida (16 %)', Number(f3.iva_pct) === 16 && Number(f3.iva) === 11200, JSON.stringify(f3));
+
+await c.query(`insert into abonos_poliza(idrep_pago, vlrcomision, estado_pago) values (2, -93750, 'C')`);
+const negativa = (await c.query(`select max(id) id from abonos_poliza`)).rows[0].id;
+ok('un subtotal negativo o en cero se rechaza', /mayor que cero/.test(await falla(DIGI, `select factura_crear(2, 1, null, null, array[${negativa}])`)));
+
+await c.query(`insert into facturas(prefijo, num_factura, fecha, aseg_id, estado) values (2, 2730, '2031-01-01', 1, 'A')`);
+ok('el prefijo vigente es el de la última factura', (await como(DIGI, () => c.query(`select factura_prefijo_vigente() p`))).rows[0].p === 2);
+ok('el siguiente número sigue esa serie (2731)', (await como(DIGI, () => c.query(`select factura_siguiente_numero() n`))).rows[0].n === 2731);
+await c.query(`update abonos_poliza set vlrcomision = 80000 where id = ${negativa}`);
+const id4 = (await como(DIGI, () => c.query(`select factura_crear(2, 1, null, null, array[${negativa}], null, 16, 10, 0, 50) id`), true)).rows[0].id;
+const f4 = (await c.query(`select * from facturas where id = $1`, [id4])).rows[0];
+ok('la factura nueva queda en el prefijo 2, número 2731', f4.prefijo === 2 && f4.num_factura === 2731, JSON.stringify(f4));
+ok('guarda la retención de IVA y descuenta del valor a consignar', Number(f4.reteiva_pct) === 50 && Number(f4.reteiva) === 6400 && Number(f4.neto) === 80000 + 12800 - 8000 - 6400, JSON.stringify(f4));
+
 console.log(`\nRESULTADO: ${pass} bien, ${fail} mal`);
 await c.end();
 await server.stop();
