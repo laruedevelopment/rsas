@@ -230,6 +230,11 @@ Deno.serve(async (req: Request) => {
       schema: RESPONSE_SCHEMA,
       maxOutputTokens: 8192,
       tolerarTruncado: true,
+      consumo: {
+        usuarioId: sesion.id,
+        tipoArchivo: mimeType === "application/pdf" ? "pdf" : "imagen",
+        bytes: bytesDeBase64(fileBase64),
+      },
     });
     if (!resultado.ok) return jsonError(resultado.error, resultado.status);
     return jsonOk(ajustarTotal(resultado.datos));

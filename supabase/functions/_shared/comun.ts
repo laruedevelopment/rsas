@@ -125,6 +125,8 @@ export async function llamarGemini(opciones: {
   temperatura?: number;
   esReintento?: boolean;
   etiqueta: string;
+  /// Para el panel de consumo: quién llamó y qué archivo se leyó.
+  consumo?: { usuarioId?: string; tipoArchivo?: string; bytes?: number };
 }): Promise<ResultadoGemini> {
   if (!GOOGLE_API_KEY) {
     console.error(`${opciones.etiqueta}: falta el secret GOOGLE_API_KEY`);
@@ -151,6 +153,23 @@ export async function llamarGemini(opciones: {
       }),
     });
 
+  const t0 = Date.now();
+  const anotar = (estado: string, uso?: Record<string, number | undefined>) =>
+    registrarConsumoIA({
+      usuarioId: opciones.consumo?.usuarioId,
+      funcion: opciones.etiqueta,
+      modelo: GEMINI_MODEL,
+      tipoArchivo: opciones.consumo?.tipoArchivo,
+      bytes: opciones.consumo?.bytes,
+      tokensEntrada: uso?.promptTokenCount,
+      tokensCache: uso?.cachedContentTokenCount,
+      tokensPensamiento: uso?.thoughtsTokenCount,
+      tokensSalida: uso?.candidatesTokenCount,
+      reintento: !!opciones.esReintento,
+      estado,
+      ms: Date.now() - t0,
+    });
+
   let res: Response;
   try {
     res = await pedir(true);
@@ -165,12 +184,14 @@ export async function llamarGemini(opciones: {
     }
   } catch (e) {
     console.error(`${opciones.etiqueta}: error de red con Gemini`, String(e).replace(/key=[^&\s]+/g, "key=***"));
+    await anotar("red");
     return { ok: false, error: "No se pudo contactar el servicio de IA. Intente de nuevo.", status: 502 };
   }
 
   if (!res.ok) {
     const detalle = await res.text();
     console.error(`${opciones.etiqueta}: Gemini ${res.status}`, detalle.slice(0, 2000));
+    await anotar(`http_${res.status}`);
     if (res.status === 429) {
       return { ok: false, error: "Se alcanzó el límite de uso de la IA. Intente de nuevo en un minuto.", status: 429 };
     }
@@ -191,6 +212,7 @@ export async function llamarGemini(opciones: {
   const candidato = data.candidates?.[0];
   const finishReason = candidato?.finishReason;
   const uso = data.usageMetadata ?? {};
+  await anotar(finishReason ?? "sin_estado", uso);
   console.log(
     `${opciones.etiqueta}: modelo=${GEMINI_MODEL} finish=${finishReason} ` +
       `entrada=${uso.promptTokenCount ?? "?"} cache=${uso.cachedContentTokenCount ?? 0} ` +
@@ -252,6 +274,59 @@ export async function llamarGemini(opciones: {
   } catch {
     console.error(`${opciones.etiqueta}: JSON inválido (finish=${finishReason}, largo=${texto.length})`);
     return { ok: false, error: "La respuesta de la IA llegó incompleta. Intente de nuevo.", status: 502 };
+  }
+}
+
+// ── Registro de consumo (panel del administrador) ───────────────────────────
+
+/// Guarda una fila en consumo_ia (ver migración 20261110090000). Nunca falla ni
+/// retrasa de más: si la tabla aún no existe o hay un error de red, solo avisa
+/// en el log y la lectura sigue normal.
+export async function registrarConsumoIA(f: {
+  usuarioId?: string;
+  funcion: string;
+  modelo: string;
+  tipoArchivo?: string;
+  bytes?: number;
+  tokensEntrada?: number;
+  tokensCache?: number;
+  tokensPensamiento?: number;
+  tokensSalida?: number;
+  reintento: boolean;
+  estado: string;
+  ms: number;
+}): Promise<void> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const clave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !clave) return;
+  try {
+    const res = await fetch(`${url}/rest/v1/consumo_ia`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        apikey: clave,
+        authorization: `Bearer ${clave}`,
+        prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        usuario_id: f.usuarioId && /^\d+$/.test(f.usuarioId) ? Number(f.usuarioId) : null,
+        funcion: f.funcion,
+        modelo: f.modelo,
+        tipo_archivo: f.tipoArchivo ?? null,
+        bytes: f.bytes ?? null,
+        tokens_entrada: f.tokensEntrada ?? null,
+        tokens_cache: f.tokensCache ?? null,
+        tokens_pensamiento: f.tokensPensamiento ?? null,
+        tokens_salida: f.tokensSalida ?? null,
+        reintento: f.reintento,
+        estado: f.estado,
+        ms: f.ms,
+      }),
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) console.warn(`registrarConsumoIA: ${res.status}, no se guardó`);
+  } catch (e) {
+    console.warn("registrarConsumoIA: error, no se guardó", String(e).slice(0, 120));
   }
 }
 

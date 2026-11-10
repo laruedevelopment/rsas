@@ -258,6 +258,7 @@ Deno.serve(async (req: Request) => {
       // ~150 tokens por línea: alcanza para unas 200 líneas. Si un reporte
       // lo supera, se avisa al usuario (MAX_TOKENS) en vez de cortar callado.
       maxOutputTokens: 32768,
+      consumo: { usuarioId: sesion.id, tipoArchivo: mimeType === "application/pdf" ? "pdf" : mimeType === MIME_XLSX ? "xlsx" : "imagen", bytes: bytesDeBase64(fileBase64) },
     });
     if (!resultado.ok) return jsonError(resultado.error, resultado.status);
     return jsonOk(resultado.datos);
