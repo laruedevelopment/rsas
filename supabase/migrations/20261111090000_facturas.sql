@@ -296,7 +296,11 @@ begin
           v_reteiva, m.reteiva, m.total, m.neto, app_usuario_id())
   returning id into v_id;
 
+  -- Enlazar la factura no cambia lo pagado: se recalcula solo el monto, sin
+  -- tocar el estado de las pólizas (mismo modo que usó la carga histórica).
+  perform set_config('app.solo_monto', '1', true);
   update abonos_poliza set idfactura = v_id where id = any(v_ids);
+  perform set_config('app.solo_monto', '', true);
   return v_id;
 end;
 $$;
@@ -333,6 +337,85 @@ begin
 end;
 $$;
 
+-- ── Quitar líneas de una factura (quedan libres) ───────────────────────────
+create or replace function factura_quitar_lineas(p_factura bigint, p_abono_ids bigint[])
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  f facturas%rowtype;
+  v_n int;
+begin
+  if coalesce(app_rol(), '') not in ('A', 'S', 'D') then
+    raise exception 'No tiene permiso para modificar facturas.' using errcode = 'P0001';
+  end if;
+  select * into f from facturas where id = p_factura for update;
+  if not found then
+    raise exception 'La factura ya no existe.' using errcode = 'P0001';
+  end if;
+  if f.estado in ('P', 'N') then
+    raise exception 'Una factura pagada o anulada no se puede modificar.' using errcode = 'P0001';
+  end if;
+  perform set_config('app.solo_monto', '1', true);
+  update abonos_poliza set idfactura = null
+   where id = any(p_abono_ids) and idfactura = p_factura;
+  get diagnostics v_n = row_count;
+  perform set_config('app.solo_monto', '', true);
+  if v_n = 0 then
+    raise exception 'Esas líneas ya no están en la factura. Recargue.' using errcode = 'P0001';
+  end if;
+  perform factura_recalcular(p_factura);
+  return v_n;
+end;
+$$;
+
+-- ── Agregar líneas libres a una factura (todo o nada) ──────────────────────
+create or replace function factura_agregar_lineas(p_factura bigint, p_abono_ids bigint[])
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  f facturas%rowtype;
+  v_ids bigint[] := (select coalesce(array_agg(distinct x), '{}') from unnest(p_abono_ids) x);
+  v_buenas int;
+  v_n int;
+begin
+  if coalesce(app_rol(), '') not in ('A', 'S', 'D') then
+    raise exception 'No tiene permiso para modificar facturas.' using errcode = 'P0001';
+  end if;
+  if coalesce(array_length(v_ids, 1), 0) = 0 then
+    raise exception 'Elija al menos una línea.' using errcode = 'P0001';
+  end if;
+  select * into f from facturas where id = p_factura for update;
+  if not found then
+    raise exception 'La factura ya no existe.' using errcode = 'P0001';
+  end if;
+  if f.estado in ('P', 'N') then
+    raise exception 'Una factura pagada o anulada no se puede modificar.' using errcode = 'P0001';
+  end if;
+
+  select count(*) into v_buenas
+    from abonos_poliza ab
+    join reportes_pago rp on rp.id = ab.idrep_pago
+   where ab.id = any(v_ids) and ab.idfactura is null and ab.estado_pago <> 'A'
+     and rp.aseg_id is not distinct from f.aseg_id;
+  if v_buenas <> array_length(v_ids, 1) then
+    raise exception 'Alguna de las líneas ya está en otra factura, está anulada o es de otra aseguradora. Recargue e intente de nuevo.' using errcode = 'P0001';
+  end if;
+
+  perform set_config('app.solo_monto', '1', true);
+  update abonos_poliza set idfactura = p_factura where id = any(v_ids);
+  get diagnostics v_n = row_count;
+  perform set_config('app.solo_monto', '', true);
+  perform factura_recalcular(p_factura);
+  return v_n;
+end;
+$$;
+
 -- ── Cambiar los porcentajes por defecto (solo Administrador) ───────────────
 create or replace function facturacion_config_guardar(p_iva numeric, p_rete numeric, p_ica numeric)
 returns void
@@ -357,10 +440,14 @@ revoke all on function factura_siguiente_numero(int) from public, anon;
 revoke all on function factura_prefijo_vigente() from public, anon;
 revoke all on function factura_crear(bigint, bigint, bigint, date, bigint[], text, numeric, numeric, numeric, numeric, int) from public, anon;
 revoke all on function factura_recalcular(bigint) from public, anon;
+revoke all on function factura_quitar_lineas(bigint, bigint[]) from public, anon;
+revoke all on function factura_agregar_lineas(bigint, bigint[]) from public, anon;
 revoke all on function facturacion_config_guardar(numeric, numeric, numeric) from public, anon;
 grant execute on function factura_montos(numeric, numeric, numeric, numeric, numeric) to authenticated;
 grant execute on function factura_prefijo_vigente() to authenticated;
 grant execute on function factura_siguiente_numero(int) to authenticated;
 grant execute on function factura_crear(bigint, bigint, bigint, date, bigint[], text, numeric, numeric, numeric, numeric, int) to authenticated;
 grant execute on function factura_recalcular(bigint) to authenticated;
+grant execute on function factura_quitar_lineas(bigint, bigint[]) to authenticated;
+grant execute on function factura_agregar_lineas(bigint, bigint[]) to authenticated;
 grant execute on function facturacion_config_guardar(numeric, numeric, numeric) to authenticated;

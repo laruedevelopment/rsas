@@ -170,6 +170,30 @@ const f4 = (await c.query(`select * from facturas where id = $1`, [id4])).rows[0
 ok('la factura nueva queda en el prefijo 2, número 2731', f4.prefijo === 2 && f4.num_factura === 2731, JSON.stringify(f4));
 ok('guarda la retención de IVA y descuenta del valor a consignar', Number(f4.reteiva_pct) === 50 && Number(f4.reteiva) === 6400 && Number(f4.neto) === 80000 + 12800 - 8000 - 6400, JSON.stringify(f4));
 
+// ── Quitar y agregar líneas ────────────────────────────────────────────────
+ok('el modo "solo monto" no queda activo después de crear una factura',
+  ((await c.query(`select current_setting('app.solo_monto', true) v`)).rows[0].v ?? '') === '');
+// Factura id4 (aseg 2, línea negativa->80000). Se crea una línea libre más de la aseguradora 2.
+await c.query(`insert into abonos_poliza(idrep_pago, vlrcomision, estado_pago) values (2, 20000, 'C')`);
+const libreA = (await c.query(`select max(id) id from abonos_poliza`)).rows[0].id;
+await c.query(`insert into abonos_poliza(idrep_pago, vlrcomision, estado_pago) values (1, 5000, 'C')`);
+const libreOtra = (await c.query(`select max(id) id from abonos_poliza`)).rows[0].id; // aseguradora 1
+ok('no deja agregar una línea de otra aseguradora', /otra aseguradora/.test(await falla(DIGI, `select factura_agregar_lineas(${id4}, array[${libreOtra}])`)));
+const agregadas = (await como(DIGI, () => c.query(`select factura_agregar_lineas(${id4}, array[${libreA}]) n`), true)).rows[0].n;
+const f4b = (await c.query(`select subtotal from facturas where id = ${id4}`)).rows[0];
+ok('agregar líneas las enlaza y vuelve a sumar el subtotal', agregadas === 1 && Number(f4b.subtotal) === 100000, JSON.stringify(f4b));
+ok('no deja agregar una línea que ya está en una factura', /ya está en otra factura/.test(await falla(DIGI, `select factura_agregar_lineas(${id4}, array[${libreA}])`)));
+const quitadas = (await como(DIGI, () => c.query(`select factura_quitar_lineas(${id4}, array[${libreA}]) n`), true)).rows[0].n;
+const f4c = (await c.query(`select subtotal from facturas where id = ${id4}`)).rows[0];
+const libre = (await c.query(`select idfactura from abonos_poliza where id = ${libreA}`)).rows[0];
+ok('quitar líneas las deja libres y vuelve a sumar', quitadas === 1 && libre.idfactura === null && Number(f4c.subtotal) === 80000, JSON.stringify([f4c, libre]));
+ok('quitar una línea que no está en la factura se rechaza', /ya no están en la factura/.test(await falla(DIGI, `select factura_quitar_lineas(${id4}, array[${libreA}])`)));
+await c.query(`update facturas set estado = 'N' where id = ${id4}`);
+ok('una factura anulada no admite agregar ni quitar líneas', /pagada o anulada/.test(await falla(DIGI, `select factura_agregar_lineas(${id4}, array[${libreA}])`)) && /pagada o anulada/.test(await falla(DIGI, `select factura_quitar_lineas(${id4}, array[${libreA}])`)));
+ok('un usuario sin rol no puede agregar líneas', /No tiene permiso/.test(await falla(NADIE, `select factura_agregar_lineas(${id4}, array[${libreA}])`)));
+ok('el modo "solo monto" tampoco queda activo después de quitar o agregar',
+  ((await c.query(`select current_setting('app.solo_monto', true) v`)).rows[0].v ?? '') === '');
+
 console.log(`\nRESULTADO: ${pass} bien, ${fail} mal`);
 await c.end();
 await server.stop();

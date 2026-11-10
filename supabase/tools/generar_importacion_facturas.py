@@ -20,6 +20,8 @@ Reglas de la conversión:
     de IVA del 50 %.
   * Los códigos de aseguradora, intermediario y empresa que ya no existan en la
     base se dejan en blanco (NULL) en vez de fallar.
+  * Los abonos con idfactura = 0 ("sin factura" en el software anterior) se dejan en
+    blanco en 3_cierre.sql, sin mover el estado de ninguna póliza.
   * Si una factura viene sin fecha (la 448), se usa su fecha de registro.
   * El usuario que la creó viene vacío en el software anterior: queda en blanco.
 """
@@ -150,6 +152,17 @@ with open(salida / '2_facturas.sql', 'w', encoding='utf-8') as f:
 total_facturas = len(lineas)
 with open(salida / '3_cierre.sql', 'w', encoding='utf-8') as f:
     f.write('-- Cierre: consecutivos y revisión. Debe devolver una sola fila, todo en "ok".\n\n')
+    f.write(
+        "-- En el software anterior Codfact = 0 significa \"sin factura\". Se dejan en blanco\n"
+        "-- para que la app los vea como \"por facturar\". Solo se recalcula el monto de la póliza,\n"
+        "-- sin tocar estados (mismo modo que usó la carga histórica).\n"
+        "do $$\n"
+        "begin\n"
+        "  perform set_config('app.solo_monto', '1', true);\n"
+        "  update abonos_poliza set idfactura = null where idfactura <= 0;\n"
+        "  perform set_config('app.solo_monto', '', true);\n"
+        "end $$;\n\n"
+    )
     f.write("select setval(pg_get_serial_sequence('facturas', 'id'), (select max(id) from facturas));\n")
     f.write("select setval(pg_get_serial_sequence('facturas_empresas', 'id'), (select max(id) from facturas_empresas));\n\n")
     f.write(
@@ -208,10 +221,13 @@ with open(salida / '0_verificar.sql', 'w', encoding='utf-8') as f:
         "select 'abonos con factura que NO viene en el archivo (deben ser 0)', count(*)::text, '', '',\n"
         "       case when count(*) = 0 then 'coincide' else 'REVISAR: quedarían enlaces rotos' end\n"
         "  from abonos_poliza ab\n"
-        "  where ab.idfactura is not null and ab.idfactura not in (select cod from fact_ant)\n"
+        "  where ab.idfactura > 0 and ab.idfactura not in (select cod from fact_ant)\n"
         "union all\n"
         "select 'abonos enlazados a una factura', count(*)::text, count(distinct idfactura)::text || ' facturas distintas', '', 'informativo'\n"
-        "  from abonos_poliza where idfactura is not null\n"
+        "  from abonos_poliza where idfactura > 0\n"
+        "union all\n"
+        "select 'abonos con idfactura = 0 (significa sin factura; el cierre los deja en blanco)', count(*)::text, '', '', 'informativo'\n"
+        "  from abonos_poliza where idfactura <= 0\n"
         "union all\n"
         "select 'empresas ya cargadas en la base (deben ser 0)', count(*)::text, '', '',\n"
         "       case when count(*) = 0 then 'coincide' else 'REVISAR: ya hay empresas' end\n"
