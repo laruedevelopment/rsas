@@ -195,8 +195,8 @@ Deno.serve(async (req: Request) => {
   if (!sesion) {
     return jsonError("Su sesión no es válida o ya venció. Inicie sesión de nuevo.", 401);
   }
-  // Los reportes de comisiones son solo para Administrador y rol S.
-  if (sesion.rol !== "A" && sesion.rol !== "S") {
+  // Los reportes de comisiones los ven todos los roles con sesión (A, S y Digitador).
+  if (sesion.rol !== "A" && sesion.rol !== "S" && sesion.rol !== "D") {
     return jsonError("No tiene permiso para leer reportes de comisiones.", 403);
   }
 
