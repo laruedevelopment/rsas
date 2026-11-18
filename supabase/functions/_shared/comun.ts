@@ -98,6 +98,11 @@ const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
 /// probar un modelo más barato.
 const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.6-flash";
 
+/// Cuánto "piensa" el modelo antes de responder (secret GEMINI_THINKING: minimal | low | medium | high).
+/// El pensamiento gasta el mismo espacio de salida que la respuesta: si es mucho, el JSON se corta
+/// (MAX_TOKENS) y faltan cliente, fechas, etc. Para transcribir un documento basta lo mínimo.
+const NIVEL_PENSAMIENTO = Deno.env.get("GEMINI_THINKING") ?? "minimal";
+
 export type ResultadoGemini =
   | { ok: true; datos: unknown }
   | { ok: false; error: string; status: number };
@@ -107,7 +112,7 @@ export type ResultadoGemini =
 /// - Las instrucciones van como systemInstruction y ANTES del archivo: esa
 ///   parte es idéntica en cada llamada y Gemini la puede cachear (el input
 ///   cacheado cuesta ~10% del normal).
-/// - thinkingLevel "low": la tarea es transcribir un documento a un schema,
+/// - thinkingLevel bajo (ver NIVEL_PENSAMIENTO): la tarea es transcribir un documento a un schema,
 ///   no razonar. El "pensamiento" se cobra como tokens de salida, así que
 ///   bajarlo reduce el costo y el tiempo de respuesta.
 /// - La API key va en un header, nunca en la URL (una URL con la key podía
@@ -148,7 +153,7 @@ export async function llamarGemini(opciones: {
           responseSchema: opciones.schema,
           maxOutputTokens: opciones.maxOutputTokens,
           ...(opciones.temperatura != null ? { temperature: opciones.temperatura } : {}),
-          ...(conThinking ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
+          ...(conThinking ? { thinkingConfig: { thinkingLevel: NIVEL_PENSAMIENTO } } : {}),
         },
       }),
     });
