@@ -230,6 +230,15 @@ export async function llamarGemini(opciones: {
     .map((p: { text: string }) => p.text)
     .join("");
 
+  // Diagnóstico: una póliza cabe en ~1.000 tokens de salida. Si sale mucho más, se deja en el log
+  // cómo empieza y cómo termina el texto (suele ser un bucle de repeticiones o de espacios).
+  if (finishReason === "MAX_TOKENS" || (uso.candidatesTokenCount ?? 0) > 3000) {
+    console.warn(
+      `${opciones.etiqueta}: salida muy larga (${uso.candidatesTokenCount ?? "?"} tokens, ${texto.length} caracteres) ` +
+        `inicio=${JSON.stringify(texto.slice(0, 300))} fin=${JSON.stringify(texto.slice(-300))}`,
+    );
+  }
+
   if (finishReason === "MAX_TOKENS") {
     console.warn(`${opciones.etiqueta}: MAX_TOKENS (largo del texto=${texto.length}, reintento=${!!opciones.esReintento})`);
     if (opciones.tolerarTruncado) {
