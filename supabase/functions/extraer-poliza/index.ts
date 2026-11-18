@@ -253,6 +253,11 @@ Deno.serve(async (req: Request) => {
       },
     });
     if (!resultado.ok) return jsonError(resultado.error, resultado.status);
+    const r = (resultado.datos ?? {}) as Record<string, unknown>;
+    console.log(
+      `extraer-poliza: leído nro=${r.nro_poliza ?? "-"} tomador="${r.nombre_cliente ?? "-"}" doc="${r.doc_cliente ?? "-"}" ` +
+        `asegurado_doc="${r.doc_asegurado ?? "-"}" beneficiario_doc="${r.doc_beneficiario ?? "-"}"`,
+    );
     return jsonOk(ajustarTotal(resultado.datos));
   } catch (e) {
     console.error("extraer-poliza: error inesperado", e);
