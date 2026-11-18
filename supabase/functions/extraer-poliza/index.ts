@@ -134,8 +134,7 @@ const INSTRUCCIONES_BASE =
   "- Si el objeto, las observaciones o los comentarios de una garantía mencionan " +
   "'seriedad' (de la oferta), es una póliza de seriedad, no de cumplimiento.\n" +
   "- Si un valor monetario aparece oculto con asteriscos (por ejemplo ****) o no se puede leer, " +
-  "devuélvalo como null. Nunca escriba cadenas largas de ceros ni más de 2 decimales.
-" +
+  "devuélvalo como null. Nunca escriba cadenas largas de ceros ni más de 2 decimales.\n" +
   "- Si un dato no aparece, devuelva null. Nunca invente valores.";
 
 /// Páginas que se envían a la IA de un PDF largo (0 = enviar completo, valor por defecto; se activa con el secret MAX_PAGINAS_POLIZA, ej. 3).
