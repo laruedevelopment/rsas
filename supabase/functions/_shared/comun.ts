@@ -101,7 +101,7 @@ const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.6-flash";
 /// Cuánto "piensa" el modelo antes de responder (secret GEMINI_THINKING: minimal | low | medium | high).
 /// El pensamiento gasta el mismo espacio de salida que la respuesta: si es mucho, el JSON se corta
 /// (MAX_TOKENS) y faltan cliente, fechas, etc. Para transcribir un documento basta lo mínimo.
-const NIVEL_PENSAMIENTO = Deno.env.get("GEMINI_THINKING") ?? "minimal";
+const NIVEL_PENSAMIENTO = Deno.env.get("GEMINI_THINKING") ?? "low";
 
 export type ResultadoGemini =
   | { ok: true; datos: unknown }
