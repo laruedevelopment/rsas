@@ -135,6 +135,9 @@ const INSTRUCCIONES_BASE =
   "'seriedad' (de la oferta), es una póliza de seriedad, no de cumplimiento.\n" +
   "- Si un valor monetario aparece oculto con asteriscos (por ejemplo ****) o no se puede leer, " +
   "devuélvalo como null. Nunca escriba cadenas largas de ceros ni más de 2 decimales.\n" +
+  "- Los NIT y cédulas deben copiarse DÍGITO POR DÍGITO, uno por uno, tal como están impresos, y " +
+  "revisarse contra el documento antes de responder: no confunda 0 con 8, 1 con 7, 3 con 8 ni 5 con 6, " +
+  "y no omita el dígito de verificación (el que va después del guion).\n" +
   "- Si un dato no aparece, devuelva null. Nunca invente valores.";
 
 /// Páginas que se envían a la IA de un PDF largo (0 = enviar completo, valor por defecto; se activa con el secret MAX_PAGINAS_POLIZA, ej. 3).
