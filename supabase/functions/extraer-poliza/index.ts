@@ -106,6 +106,20 @@ const RESPONSE_SCHEMA = {
   },
 };
 
+/// Orden en que la IA escribe los campos: los de texto primero y los NUMÉRICOS al final.
+/// Motivo (log del 18/11/2026): en pólizas con el valor tapado con asteriscos (****) la IA se
+/// quedó escribiendo "0.0000000…" sin parar en valor_poliza; como lo escribía antes que el
+/// cliente y las fechas, esos campos se perdían. Con los números al final, si algo así vuelve
+/// a pasar solo se pierde el último dato y lo demás se rescata.
+const PROPIEDADES = RESPONSE_SCHEMA.properties as Record<string, { type: string }>;
+const SCHEMA_ORDENADO = {
+  ...RESPONSE_SCHEMA,
+  propertyOrdering: [
+    ...Object.keys(PROPIEDADES).filter((k) => PROPIEDADES[k].type !== "NUMBER"),
+    ...Object.keys(PROPIEDADES).filter((k) => PROPIEDADES[k].type === "NUMBER"),
+  ],
+};
+
 const INSTRUCCIONES_BASE =
   "Usted extrae datos de pólizas de seguros emitidas por aseguradoras colombianas y los " +
   "devuelve según el schema.\n" +
@@ -119,6 +133,9 @@ const INSTRUCCIONES_BASE =
   "nombre_cliente/doc_cliente y el segundo en asegurado/beneficiario.\n" +
   "- Si el objeto, las observaciones o los comentarios de una garantía mencionan " +
   "'seriedad' (de la oferta), es una póliza de seriedad, no de cumplimiento.\n" +
+  "- Si un valor monetario aparece oculto con asteriscos (por ejemplo ****) o no se puede leer, " +
+  "devuélvalo como null. Nunca escriba cadenas largas de ceros ni más de 2 decimales.
+" +
   "- Si un dato no aparece, devuelva null. Nunca invente valores.";
 
 /// Páginas que se envían a la IA de un PDF largo (0 = enviar completo, valor por defecto; se activa con el secret MAX_PAGINAS_POLIZA, ej. 3).
@@ -227,7 +244,7 @@ Deno.serve(async (req: Request) => {
       etiqueta: "extraer-poliza",
       instrucciones: INSTRUCCIONES_BASE + textoCatalogo(catalogoProductos ?? []),
       partes: [{ inlineData: { mimeType, data: archivo.base64 } }],
-      schema: RESPONSE_SCHEMA,
+      schema: SCHEMA_ORDENADO,
       maxOutputTokens: 8192,
       tolerarTruncado: true,
       consumo: {
